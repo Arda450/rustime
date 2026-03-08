@@ -1,0 +1,28 @@
+---
+description: Keine Gedankenstriche zum Verbinden von Sätzen verwenden
+globs: "**/*.typ"
+alwaysApply: false
+---
+
+# Keine Gedankenstriche (–) als Satzverbinder
+
+In deutschen Texten dieses Projekts sollen **keine Gedankenstriche** (–) verwendet werden, um Sätze oder Satzteile aneinanderzubinden.
+
+## Regel
+
+- Keine Konstruktionen wie: `… Oberfläche der App – und stellt damit …`
+- Stattdessen den Satz umformulieren, z. B. mit Komma, Punkt oder Konjunktion.
+
+## Beispiele
+
+| Falsch | Richtig |
+|--------|---------|
+| Das Frontend verantwortet die UI – und stellt den Web-Bezug her. | Das Frontend verantwortet die UI und stellt den Web-Bezug her. |
+| Tauri ist schlank – im Gegensatz zu Electron. | Tauri ist schlank, im Gegensatz zu Electron. |
+| Die App läuft lokal – ohne Cloud-Anbindung. | Die App läuft lokal, ohne Cloud-Anbindung. |
+| Rustime setzt auf UI-basierte Konfiguration – Plug-and-Play statt Config-Dateien. | Rustime setzt auf UI-basierte Konfiguration, Plug-and-Play statt Config-Dateien. |
+| keine fertige App – Schema und Queries | keine fertige App; Schema und Queries |
+| (Plan–Do–Check–Act) | (Plan, Do, Check, Act) |## Erlaubt (keine Satzverbindung)
+
+- Zahlenbereiche: 1–2 Sekunden, 50–100 MB, KW 11–17
+- Datumsbereiche: 26.–28.08.2026

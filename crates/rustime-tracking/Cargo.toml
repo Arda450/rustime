@@ -1,0 +1,9 @@
+[package]
+name = "rustime-tracking"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rustime-core = { path = "../rustime-core" }
+windows.workspace = true
+rusqlite.workspace = true

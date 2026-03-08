@@ -1,0 +1,9 @@
+[package]
+name = "rustime-db"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rustime-core = { path = "../rustime-core" }
+rusqlite.workspace = true
+dirs.workspace = true

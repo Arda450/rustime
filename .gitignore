@@ -1,0 +1,6 @@
+/target/
+/mpp/
+/Markdown Files/
+/tauri-app/src-tauri/target/
+.cursor/rules/
+.vscode/settings.json
