@@ -1,11 +1,12 @@
 use rusqlite::Connection;
+use crate::DbError;
 
-pub fn init_database() -> rusqlite::Result<Connection> {
+pub fn init_database() -> Result<Connection, DbError> {
     let app_dir = dirs::document_dir()
-        .expect("Could not find document directory")
+        .ok_or(DbError::AppDirNotFound)?
         .join("rustime-data");
 
-    std::fs::create_dir_all(&app_dir).expect("Could not create app directory");
+    std::fs::create_dir_all(&app_dir)?;
 
     let db_path = app_dir.join("rustime.db");
 

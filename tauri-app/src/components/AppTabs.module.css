@@ -1,0 +1,64 @@
+.Page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 26px 18px 22px;
+}
+
+.Tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.List {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px; /* eckiger */
+  background: #101010;
+  box-shadow: none; /* kein Glanz */
+}
+
+.Tab {
+  border: 1px solid #2b2b2b;
+  border-radius: 6px; /* eckiger */
+  padding: 8px 16px;
+  font-weight: 700;
+  color: #c8c8c8;
+  background: #121212;
+  cursor: pointer;
+  transition: 120ms ease;
+}
+
+.Tab:hover {
+  color: #f0f0f0;
+  background: #1a1a1a;
+}
+
+.Tab[data-active] {
+  color: #ffffff;
+  border-color: #565656;
+  background: #2a2a2a;
+  box-shadow: none; /* Glanz weg */
+}
+
+.Tab:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-color: #6a6a6a;
+}
+
+.Indicator {
+  display: none;
+}
+
+.Panel {
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 18px;
+  background: #111111;
+  box-shadow: none;
+}
