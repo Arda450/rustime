@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-// import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { parseWindowContext, formatContextLabel } from "../utils/WindowContext";
+import reactLogo from "../assets/react.svg";
 
 type Activity = { title: string; timestamp: number };
 
@@ -67,24 +67,29 @@ function OverviewPanel() {
   const [exportMsg, setExportMsg] = useState("");
   const [exportPreview, setExportPreview] = useState("");
   const [isExporting, setIsExporting] = useState(false);
-  // const [greetMsg, setGreetMsg] = useState("");
-  // const [name, setName] = useState("");
-  // const [windowTitle, setWindowTitle] = useState("");
   const [isTracking, setIsTracking] = useState(false); // zeigt ob tracking läuft oder nicht
   const [activities, setActivities] = useState<Activity[]>([]);
 
-  // async function greet() {
-  //   setGreetMsg(await invoke("greet", { name }));
-  // }
+  async function exportJsonToDownloads() {
+    try {
+      const path = await invoke<string>("export_activities_json_to_downloads");
+      setExportMsg(`Export erfolgreich: ${path}`);
+    } catch (e) {
+      const parsed = parseApiError(e);
+      setExportMsg(
+        `Export fehlgeschlagen: ${toUserMessage(parsed.code, parsed.message)}`,
+      );
+    }
+  }
 
-  async function exportJson() {
+  async function PreviewJsonUi() {
     try {
       setIsExporting(true);
       setExportMsg("");
 
-      const json = await invoke<string>("export_activities_json");
+      const json = await invoke<string>("show_activities_json");
 
-      // JSON validieren + optional schoen formatieren
+      // JSON validieren + optional schön formatieren
       const parsed = JSON.parse(json);
       const pretty = JSON.stringify(parsed, null, 2);
 
@@ -101,19 +106,6 @@ function OverviewPanel() {
       setIsExporting(false);
     }
   }
-
-  // async function getWindowTitle() {
-  //   try {
-  //     const title = await invoke<string>("get_current_window");
-  //     setWindowTitle(title);
-  //     setExportMsg("");
-  //   } catch (e) {
-  //     const parsed = parseApiError(e);
-  //     setExportMsg(
-  //       `Fenstertitel holen fehlgeschlagen: ${toUserMessage(parsed.code, parsed.message)}`,
-  //     );
-  //   }
-  // }
 
   async function startTracking() {
     try {
@@ -155,40 +147,6 @@ function OverviewPanel() {
 
   return (
     <main className="container">
-      {/* <h1>Welcome to Tauri + React</h1> */}
-
-      {/* <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        78
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greeargergherqget</button>
-      </form> */}
-      {/* <p>{greetMsg}</p> */}
-      {/* <button onClick={getWindowTitle}>Fenstertitel holen</button>
-      <p>{windowTitle}</p> */}
-
       {/* Tracking Controls */}
       <div style={{ marginTop: "20px" }}>
         <h2>Tracking</h2>
@@ -219,13 +177,17 @@ function OverviewPanel() {
         </ul>
       </div>
 
-      <button onClick={exportJson} disabled={isExporting}>
-        {isExporting ? "Export läuft..." : "Export JSON"}
+      <button onClick={PreviewJsonUi} disabled={isExporting}>
+        {isExporting ? "Lade Vorschau..." : "JSON in UI anzeigen"}
       </button>
       <p>{exportMsg}</p>
       <pre style={{ maxHeight: 220, overflow: "auto", textAlign: "left" }}>
         {exportPreview}
       </pre>
+
+      <button onClick={exportJsonToDownloads} disabled={isExporting}>
+        {isExporting ? "Export läuft..." : "JSON in Downloads speichern"}
+      </button>
     </main>
   );
 }

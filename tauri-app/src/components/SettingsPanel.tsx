@@ -1,7 +1,7 @@
-export function AccountPanel() {
+export function SettingsPanel() {
   return (
     <section>
-      <h2>Account</h2>
+      <h2>Settings</h2>
       <p>Coming soon.</p>
     </section>
   );

@@ -1,5 +1,5 @@
-use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowTextW};
 use crate::TrackingError;
+use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowTextW};
 
 pub fn current_timestamp() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};

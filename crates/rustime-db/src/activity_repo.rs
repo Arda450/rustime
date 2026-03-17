@@ -1,6 +1,6 @@
+use crate::DbError;
 use rusqlite::Connection;
 use rustime_core::models::WindowActivity;
-use crate::DbError;
 
 pub fn insert_activity(conn: &Connection, activity: &WindowActivity) -> Result<(), DbError> {
     conn.execute(
@@ -10,6 +10,8 @@ pub fn insert_activity(conn: &Connection, activity: &WindowActivity) -> Result<(
     Ok(())
 }
 
+// lädt alle aktivitäten aus der datenbank und gibt sie als vector von windowactivities zurück
+// direkter zugriff auf sqlite
 pub fn get_all_activities(conn: &Connection) -> Result<Vec<WindowActivity>, DbError> {
     let mut stmt =
         conn.prepare("SELECT window_title, timestamp FROM activities ORDER BY timestamp DESC")?;
