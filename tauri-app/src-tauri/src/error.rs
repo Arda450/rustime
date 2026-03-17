@@ -46,7 +46,9 @@ impl From<TrackingError> for ApiError {
             TrackingError::WindowNotFound => {
                 ApiError::new("WINDOW_NOT_FOUND", "Kein aktives Fenster gefunden")
             }
-            TrackingError::EmptyTitle => ApiError::new("WINDOW_TITLE_EMPTY", "Fenstertitel ist leer"),
+            TrackingError::EmptyTitle => {
+                ApiError::new("WINDOW_TITLE_EMPTY", "Fenstertitel ist leer")
+            }
             TrackingError::LockPoisoned(name) => {
                 ApiError::new("LOCK_POISONED", format!("Lock vergiftet: {}", name))
             }

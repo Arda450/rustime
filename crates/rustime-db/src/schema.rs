@@ -1,5 +1,5 @@
-use rusqlite::Connection;
 use crate::DbError;
+use rusqlite::Connection;
 
 pub fn init_database() -> Result<Connection, DbError> {
     let app_dir = dirs::document_dir()
