@@ -14,6 +14,8 @@ pub struct ExportActivity {
     pub timestamp: u64,
     pub timestamp_utc: String,
     pub timestamp_local: String,
+    pub project_id: Option<i64>,
+    pub project_name: Option<String>,
 }
 
 #[derive(Serialize)]

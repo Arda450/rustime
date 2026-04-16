@@ -5,12 +5,10 @@ use tauri::State;
 
 use crate::dto::export::{ExportActivity, ExportMeta, ExportPayload};
 use crate::error::ApiError;
-use rustime_core::models::WindowActivity;
-use rustime_db::get_all_activities;
+use rustime_db::{get_activities_with_projects, ActivityWithProject};
 use rustime_tracking::{current_timestamp, TrackingState};
 
-// wandelt eine WindowActivity in eine ExportActivity um und fügt die timestamp_utc und timestamp_local hinzu
-fn to_export_activity(a: WindowActivity) -> ExportActivity {
+fn to_export_activity(a: ActivityWithProject) -> ExportActivity {
     let ts = a.timestamp as i64;
 
     let iso_utc = Utc
@@ -25,21 +23,23 @@ fn to_export_activity(a: WindowActivity) -> ExportActivity {
         .map(|dt| dt.to_rfc3339())
         .unwrap_or_default();
 
-        ExportActivity {
-            title: a.title,
-            timestamp: a.timestamp,
-            timestamp_utc: iso_utc,
-            timestamp_local: iso_local,
-        }
+    ExportActivity {
+        title: a.title,
+        timestamp: a.timestamp,
+        timestamp_utc: iso_utc,
+        timestamp_local: iso_local,
+        project_id: a.project_id,
+        project_name: a.project_name,
     }
+}
 
-fn build_payload(activities: Vec<WindowActivity>) -> ExportPayload {
+fn build_payload(activities: Vec<ActivityWithProject>) -> ExportPayload {
     let export_activities: Vec<ExportActivity> =
         activities.into_iter().map(to_export_activity).collect();
 
     ExportPayload {
         meta: ExportMeta {
-            format_version: 1,
+            format_version: 2,
             exported_at_unix: current_timestamp(),
             entry_count: export_activities.len(),
             timezone: Local::now().offset().to_string(),
@@ -56,22 +56,23 @@ pub fn show_activities_json(state: State<TrackingState>) -> Result<String, ApiEr
         .db
         .lock()
         .map_err(|_| ApiError::new("DB_LOCK_FAILED", "Datenbank-Lock fehlgeschlagen"))?;
-    let activities = get_all_activities(&db_conn).map_err(ApiError::from)?;
+    let activities = get_activities_with_projects(&db_conn).map_err(ApiError::from)?;
     let payload = build_payload(activities);
 
     serde_json::to_string(&payload)
         .map_err(|e| ApiError::new("JSON_SERIALIZE_FAILED", e.to_string()))
 }
 
-
 #[tauri::command]
-pub fn export_activities_json_to_downloads(state: State<TrackingState>) -> Result<String, ApiError> {
+pub fn export_activities_json_to_downloads(
+    state: State<TrackingState>,
+) -> Result<String, ApiError> {
     let db_conn = state
         .db
         .lock()
         .map_err(|_| ApiError::new("DB_LOCK_FAILED", "Datenbank-Lock fehlgeschlagen"))?;
 
-    let activities = get_all_activities(&db_conn).map_err(ApiError::from)?;
+    let activities = get_activities_with_projects(&db_conn).map_err(ApiError::from)?;
     let payload = build_payload(activities);
 
     let download_dir: PathBuf = dirs::download_dir()

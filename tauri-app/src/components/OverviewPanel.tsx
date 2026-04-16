@@ -2,9 +2,13 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { parseWindowContext, formatContextLabel } from "../utils/WindowContext";
-import reactLogo from "../assets/react.svg";
 
-type Activity = { title: string; timestamp: number };
+type Activity = {
+  title: string;
+  timestamp: number;
+  project_id: number | null;
+  project_name: string | null;
+};
 
 type BackendApiError = {
   code?: string;
@@ -94,9 +98,10 @@ function OverviewPanel() {
       const pretty = JSON.stringify(parsed, null, 2);
 
       setExportPreview(pretty);
-      setExportMsg(
-        `Export erfolgreich (${Array.isArray(parsed) ? parsed.length : "?"} Einträge)`,
-      );
+      const count =
+        parsed?.activities?.length ??
+        (Array.isArray(parsed) ? parsed.length : "?");
+      setExportMsg(`Export erfolgreich (${count} Einträge)`);
     } catch (e) {
       const parsed = parseApiError(e);
       setExportMsg(
@@ -133,17 +138,26 @@ function OverviewPanel() {
     }
   }
 
-  // ladet daten vom backend und aktualisiert die activities liste
+  // Beim Start: Aktivitäten aus DB laden
+  useEffect(() => {
+    invoke<Activity[]>("get_activities")
+      .then((rows) => setActivities(rows))
+      .catch((e) => {
+        const parsed = parseApiError(e);
+        setExportMsg(toUserMessage(parsed.code, parsed.message));
+      });
+  }, []);
+
+  // Live-Events abonnieren
   useEffect(() => {
     const unlisten = listen<Activity>("new-activity", (event) => {
-      setActivities((prev) => [...prev, event.payload]);
+      setActivities((prev) => [event.payload, ...prev]);
     });
 
-    // Cleanup
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, []); //leeres array, nur beim ersten render ausführen
+  }, []);
 
   return (
     <main className="container">
@@ -171,6 +185,11 @@ function OverviewPanel() {
                 {new Date(activity.timestamp * 1000).toLocaleTimeString()}:{" "}
                 {label}
                 {parsed.raw && parsed.raw !== label ? ` (${parsed.raw})` : ""}
+                {activity.project_name && (
+                  <span style={{ marginLeft: 8, opacity: 0.7 }}>
+                    [{activity.project_name}]
+                  </span>
+                )}
               </li>
             );
           })}
