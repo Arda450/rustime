@@ -4,10 +4,13 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, State};
 
+use crate::dto::activity::ActivityDto;
 use crate::error::ApiError;
 use rustime_core::models::WindowActivity;
-use rustime_db::{get_all_activities, insert_activity};
-use rustime_tracking::{current_timestamp, try_get_active_window_title, TrackingError, TrackingState};
+use rustime_db::get_activities_with_projects;
+use rustime_tracking::{
+    current_timestamp, try_get_active_window_title, TrackingError, TrackingState,
+};
 
 #[tauri::command]
 pub fn start_tracking(state: State<TrackingState>, app: AppHandle) {
@@ -23,6 +26,7 @@ pub fn start_tracking(state: State<TrackingState>, app: AppHandle) {
     let is_running = Arc::clone(&state.is_running);
     let activities = Arc::clone(&state.activities);
     let db = Arc::clone(&state.db);
+    let active_project = Arc::clone(&state.active_project);
     let app_handle = app.clone(); // Für den Thread
 
     // Hintergrund-Thread starten
@@ -53,14 +57,26 @@ pub fn start_tracking(state: State<TrackingState>, app: AppHandle) {
                 if let Ok(mut list) = activities.lock() {
                     list.push(activity.clone());
                 }
-                // In SQLite speichern (Festplatte)
+                // Aktives Projekt (id, name) holen
+                let proj = active_project.lock().ok().and_then(|g| g.clone());
+
+                // In SQLite speichern
                 if let Ok(db_conn) = db.lock() {
-                    if let Err(e) = insert_activity(&db_conn, &activity) {
-                        eprintln!("DB insert error: {}", e);
+                    if let Some((pid, _)) = &proj {
+                        if let Err(e) = rustime_db::insert_activity_with_project(&db_conn, &activity, *pid) {
+                            eprintln!("DB insert error: {}", e);
+                        }
                     }
                 }
 
-                let _ = app_handle.emit("new-activity", activity);
+                // Event mit Projekt-Info ans Frontend
+                let dto = ActivityDto {
+                    title: activity.title,
+                    timestamp: activity.timestamp,
+                    project_id: proj.as_ref().map(|(id, _)| *id),
+                    project_name: proj.map(|(_, name)| name),
+                };
+                let _ = app_handle.emit("new-activity", dto);
             }
 
             // 2 Sekunden warten
@@ -74,15 +90,24 @@ pub fn stop_tracking(state: State<TrackingState>) {
     state.is_running.store(false, Ordering::SeqCst);
 }
 
-// command für das frontend, ruft get_all_activities aus der activity_repo.rs auf und gibt sie als vector von windowactivities zurück
+/// Gibt alle Aktivitäten inkl. Projekt-Info zurück (für UI-Liste).
 #[tauri::command]
-pub fn get_activities(state: State<TrackingState>) -> Result<Vec<WindowActivity>, ApiError> {
+pub fn get_activities(state: State<TrackingState>) -> Result<Vec<ActivityDto>, ApiError> {
     let db_conn = state
         .db
         .lock()
         .map_err(|_| ApiError::new("DB_LOCK_FAILED", "Datenbank-Lock fehlgeschlagen"))?;
 
-    get_all_activities(&db_conn).map_err(ApiError::from)
+    let rows = get_activities_with_projects(&db_conn).map_err(ApiError::from)?;
+    Ok(rows
+        .into_iter()
+        .map(|r| ActivityDto {
+            title: r.title,
+            timestamp: r.timestamp,
+            project_id: r.project_id,
+            project_name: r.project_name,
+        })
+        .collect())
 }
 
 #[tauri::command]

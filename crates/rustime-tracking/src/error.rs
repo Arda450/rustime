@@ -1,4 +1,4 @@
-// tracking-spezifische Fehler hier
+// eigene fehlertypen für Tracking-Probleme
 
 use std::fmt::{Display, Formatter};
 
@@ -9,6 +9,7 @@ pub enum TrackingError {
     LockPoisoned(&'static str),
 }
 
+// display macht den error menschenlesbar
 impl Display for TrackingError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
