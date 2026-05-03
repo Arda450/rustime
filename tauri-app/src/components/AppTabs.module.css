@@ -16,39 +16,39 @@
   justify-content: center;
   gap: 8px;
   padding: 6px;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px; /* eckiger */
-  background: #101010;
-  box-shadow: none; /* kein Glanz */
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  box-shadow: none;
 }
 
 .Tab {
-  border: 1px solid #2b2b2b;
-  border-radius: 6px; /* eckiger */
+  border: 1px solid var(--border);
+  border-radius: 6px;
   padding: 8px 16px;
   font-weight: 700;
-  color: #c8c8c8;
-  background: #121212;
+  color: var(--muted);
+  background: var(--surface);
   cursor: pointer;
   transition: 120ms ease;
 }
 
 .Tab:hover {
-  color: #f0f0f0;
-  background: #1a1a1a;
+  color: var(--text);
+  filter: brightness(1.05);
 }
 
 .Tab[data-active] {
-  color: #ffffff;
-  border-color: #565656;
-  background: #2a2a2a;
-  box-shadow: none; /* Glanz weg */
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--surface-strong);
+  box-shadow: none;
 }
 
 .Tab:focus-visible {
   outline: none;
   box-shadow: none;
-  border-color: #6a6a6a;
+  border-color: var(--accent);
 }
 
 .Indicator {
@@ -56,9 +56,10 @@
 }
 
 .Panel {
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 18px;
-  background: #111111;
-  box-shadow: none;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
 }

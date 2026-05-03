@@ -1,13 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { parseWindowContext, formatContextLabel } from "../utils/WindowContext";
+import { Activity, Project } from "../types";
+import { ProjectPickerButton } from "./ProjectPickerButton";
+import { useProjectPicker } from "../hooks/useProjectPicker";
 
-type Activity = {
-  title: string;
-  timestamp: number;
-  project_id: number | null;
-  project_name: string | null;
+type OverviewPanelProps = {
+  isTracking: boolean;
+  onStartTracking: () => Promise<void> | void;
+  onStopTracking: () => Promise<void> | void;
+  statusError?: string | null;
+  activeProject: Project | null;
+  activities: Activity[];
+  onProjectSelected: (project: Project) => void;
 };
 
 type BackendApiError = {
@@ -16,35 +21,33 @@ type BackendApiError = {
 };
 
 function parseApiError(err: unknown): { code?: string; message: string } {
-  // Tauri wirft oft Error-Objekte, manchmal Strings
   if (typeof err === "string") {
-    // Versuch: JSON-String mit { code, message }
     try {
       const parsed = JSON.parse(err) as BackendApiError;
-      if (parsed?.message) {
+      if (parsed?.message)
         return { code: parsed.code, message: parsed.message };
-      }
     } catch {
       return { message: err };
     }
     return { message: err };
   }
+
   if (err && typeof err === "object") {
     const anyErr = err as Record<string, unknown>;
-    // Häufiges Tauri-Format: { code, message }
     if (typeof anyErr.message === "string") {
       return {
         code: typeof anyErr.code === "string" ? anyErr.code : undefined,
         message: anyErr.message,
       };
     }
-    // Falls error-string in anderem Feld steckt
     if (typeof anyErr.error === "string") {
       return { message: anyErr.error };
     }
   }
+
   return { message: "Unbekannter Fehler" };
 }
+
 function toUserMessage(code: string | undefined, fallback: string): string {
   switch (code) {
     case "DB_LOCK_FAILED":
@@ -67,12 +70,27 @@ function toUserMessage(code: string | undefined, fallback: string): string {
   }
 }
 
-function OverviewPanel() {
+function OverviewPanel({
+  isTracking,
+  onStartTracking,
+  onStopTracking,
+  statusError,
+  activeProject,
+  activities,
+  onProjectSelected,
+}: OverviewPanelProps) {
   const [exportMsg, setExportMsg] = useState("");
   const [exportPreview, setExportPreview] = useState("");
   const [isExporting, setIsExporting] = useState(false);
-  const [isTracking, setIsTracking] = useState(false); // zeigt ob tracking läuft oder nicht
-  const [activities, setActivities] = useState<Activity[]>([]);
+
+  const { pickProject, isPicking, error, clearError } = useProjectPicker({
+    onProjectSelected,
+  });
+
+  async function chooseProjectFromOverview() {
+    clearError();
+    await pickProject();
+  }
 
   async function exportJsonToDownloads() {
     try {
@@ -86,14 +104,12 @@ function OverviewPanel() {
     }
   }
 
-  async function PreviewJsonUi() {
+  async function previewJsonUi() {
     try {
       setIsExporting(true);
       setExportMsg("");
 
       const json = await invoke<string>("show_activities_json");
-
-      // JSON validieren + optional schön formatieren
       const parsed = JSON.parse(json);
       const pretty = JSON.stringify(parsed, null, 2);
 
@@ -112,102 +128,118 @@ function OverviewPanel() {
     }
   }
 
-  async function startTracking() {
-    try {
-      await invoke("start_tracking");
-      setIsTracking(true);
-      setExportMsg("");
-    } catch (e) {
-      const parsed = parseApiError(e);
-      setExportMsg(
-        `Start fehlgeschlagen: ${toUserMessage(parsed.code, parsed.message)}`,
-      );
-    }
-  }
-
-  async function stopTracking() {
-    try {
-      await invoke("stop_tracking");
-      setIsTracking(false);
-      setExportMsg("");
-    } catch (e) {
-      const parsed = parseApiError(e);
-      setExportMsg(
-        `Stop fehlgeschlagen: ${toUserMessage(parsed.code, parsed.message)}`,
-      );
-    }
-  }
-
-  // Beim Start: Aktivitäten aus DB laden
-  useEffect(() => {
-    invoke<Activity[]>("get_activities")
-      .then((rows) => setActivities(rows))
-      .catch((e) => {
-        const parsed = parseApiError(e);
-        setExportMsg(toUserMessage(parsed.code, parsed.message));
-      });
-  }, []);
-
-  // Live-Events abonnieren
-  useEffect(() => {
-    const unlisten = listen<Activity>("new-activity", (event) => {
-      setActivities((prev) => [event.payload, ...prev]);
-    });
-
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, []);
-
   return (
-    <main className="container">
-      {/* Tracking Controls */}
-      <div style={{ marginTop: "20px" }}>
-        <h2>Tracking</h2>
-        {!isTracking ? (
-          <button onClick={startTracking}>▶ Start Tracking</button>
-        ) : (
-          <button onClick={stopTracking}>⏹ Stop Tracking</button>
+    <section className="container">
+      <h2>Tracking</h2>
+
+      {activeProject ? (
+        <p style={{ marginBottom: "12px", color: "var(--accent)" }}>
+          Projekt: <strong>{activeProject.name}</strong>
+        </p>
+      ) : (
+        <p style={{ marginBottom: "12px", color: "var(--warning)" }}>
+          Bitte zuerst ein Projekt wählen.
+        </p>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        {!activeProject && (
+          <ProjectPickerButton
+            onPick={chooseProjectFromOverview}
+            loading={isPicking}
+          />
         )}
-        <p>Status: {isTracking ? "Läuft..." : "Gestoppt"}</p>
+
+        {!isTracking ? (
+          <button onClick={onStartTracking} disabled={!activeProject}>
+            ▶ Start Tracking
+          </button>
+        ) : (
+          <button onClick={onStopTracking}>⏹ Stop Tracking</button>
+        )}
       </div>
 
-      {/* Aktivitäten-Liste */}
+      {error && (
+        <p style={{ marginTop: "8px", color: "var(--danger)" }}>{error}</p>
+      )}
+
+      <p style={{ marginTop: "12px" }}>
+        Status: {isTracking ? "Läuft..." : "Gestoppt"}
+      </p>
+      {statusError && (
+        <p style={{ marginTop: 8, color: "red" }}>{statusError}</p>
+      )}
+
       <div style={{ marginTop: "20px" }}>
         <h3>Erfasste Fenster ({activities.length})</h3>
-        <ul style={{ textAlign: "left", maxHeight: "200px", overflow: "auto" }}>
-          {activities.map((activity, index) => {
-            const parsed = parseWindowContext(activity.title);
-            const label = formatContextLabel(parsed);
+        {activities.length === 0 ? (
+          <p style={{ color: "var(--muted)", fontStyle: "italic" }}>
+            Noch keine Aktivitäten erfasst. Starte das Tracking, um Fenster zu
+            erfassen.
+          </p>
+        ) : (
+          <ul
+            style={{ textAlign: "left", maxHeight: "200px", overflow: "auto" }}
+          >
+            {activities.map((activity, index) => {
+              const parsed = parseWindowContext(activity.title);
+              const label = formatContextLabel(parsed);
 
-            return (
-              <li key={index}>
-                {new Date(activity.timestamp * 1000).toLocaleTimeString()}:{" "}
-                {label}
-                {parsed.raw && parsed.raw !== label ? ` (${parsed.raw})` : ""}
-                {activity.project_name && (
-                  <span style={{ marginLeft: 8, opacity: 0.7 }}>
-                    [{activity.project_name}]
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+              return (
+                <li key={index}>
+                  {new Date(activity.timestamp * 1000).toLocaleTimeString()}:{" "}
+                  {label}
+                  {parsed.raw && parsed.raw !== label ? ` (${parsed.raw})` : ""}
+                  {activity.project_name && (
+                    <span style={{ marginLeft: 8, opacity: 0.7 }}>
+                      [{activity.project_name}]
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
-      <button onClick={PreviewJsonUi} disabled={isExporting}>
-        {isExporting ? "Lade Vorschau..." : "JSON in UI anzeigen"}
-      </button>
-      <p>{exportMsg}</p>
-      <pre style={{ maxHeight: 220, overflow: "auto", textAlign: "left" }}>
-        {exportPreview}
-      </pre>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
+          marginTop: "16px",
+        }}
+      >
+        <button
+          onClick={previewJsonUi}
+          disabled={isExporting || activities.length === 0}
+        >
+          {isExporting ? "Lade Vorschau..." : "JSON in UI anzeigen"}
+        </button>
 
-      <button onClick={exportJsonToDownloads} disabled={isExporting}>
-        {isExporting ? "Export läuft..." : "JSON in Downloads speichern"}
-      </button>
-    </main>
+        <button
+          onClick={exportJsonToDownloads}
+          disabled={isExporting || activities.length === 0}
+        >
+          {isExporting ? "Export läuft..." : "JSON in Downloads speichern"}
+        </button>
+      </div>
+
+      {exportMsg && <p style={{ marginTop: "12px" }}>{exportMsg}</p>}
+
+      {exportPreview && (
+        <pre
+          style={{
+            maxHeight: 220,
+            overflow: "auto",
+            textAlign: "left",
+            marginTop: "12px",
+          }}
+        >
+          {exportPreview}
+        </pre>
+      )}
+    </section>
   );
 }
 

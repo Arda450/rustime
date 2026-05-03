@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { Project } from "../types";
+import { useProjectPicker } from "../hooks/useProjectPicker";
+import { ProjectPickerButton } from "./ProjectPickerButton";
 
-type Project = { id: number; name: string; path: string };
+type ProjectsPanelProps = {
+  activeProject: Project | null;
+  onProjectSelected: (project: Project) => void;
+};
 
-export function ProjectsPanel() {
+export function ProjectsPanel({
+  activeProject,
+  onProjectSelected,
+}: ProjectsPanelProps) {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [active, setActive] = useState<Project | null>(null);
   const [msg, setMsg] = useState("");
 
   async function loadProjects() {
@@ -14,16 +21,30 @@ export function ProjectsPanel() {
     setProjects(rows);
   }
 
-  async function chooseProject() {
-    const selected = await open({ directory: true, multiple: false });
-    if (!selected || typeof selected !== "string") return;
+  const { pickProject, isPicking, error, clearError } = useProjectPicker({
+    onProjectSelected,
+  });
 
-    const project = await invoke<Project>("select_project_path", {
-      path: selected,
-    });
-    setActive(project);
+  async function chooseProject() {
+    clearError();
+    const project = await pickProject();
+    if (!project) return;
+
     setMsg(`Aktives Projekt: ${project.name}`);
     await loadProjects();
+  }
+
+  async function setActiveProject(projectId: number) {
+    try {
+      const project = await invoke<Project>("set_active_project", {
+        projectId,
+      });
+      onProjectSelected(project);
+      setMsg(`Aktives Projekt: ${project.name}`);
+      await loadProjects();
+    } catch (e) {
+      setMsg(`Projektwechsel fehlgeschlagen: ${String(e)}`);
+    }
   }
 
   useEffect(() => {
@@ -31,21 +52,42 @@ export function ProjectsPanel() {
   }, []);
 
   return (
-    <section>
-      <h2>Projects</h2>
-      <button onClick={chooseProject}>Projekt wählen</button>
+    <section className="container">
+      <h2>Projekte</h2>
+
+      <ProjectPickerButton onPick={chooseProject} loading={isPicking} />
+
       <p>{msg}</p>
-      {active && (
+      {error && <p style={{ color: "red" }}>{error}</p>}
+
+      {activeProject && (
         <p>
-          Aktiv: {active.name} ({active.path})
+          Aktiv: {activeProject.name} ({activeProject.path})
         </p>
       )}
+
       <ul>
-        {projects.map((p) => (
-          <li key={p.id}>
-            {p.name} - {p.path}
-          </li>
-        ))}
+        {projects.map((p) => {
+          const isActive = activeProject?.id === p.id;
+
+          return (
+            <li key={p.id} className="projectRow">
+              <span className="projectLabel">
+                {p.name} - {p.path}{" "}
+                {isActive ? <span className="greenDotActive"></span> : null}
+              </span>
+
+              <button
+                className="projectActionBtn"
+                onClick={() => setActiveProject(p.id)}
+                disabled={isActive}
+                aria-label={`Projekt ${p.name} aktiv setzen`}
+              >
+                {isActive ? "Aktiv" : "Aktiv setzen"}
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

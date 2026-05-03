@@ -66,3 +66,15 @@ pub fn get_activities_with_projects(conn: &Connection) -> Result<Vec<ActivityWit
 
     Ok(rows)
 }
+
+/// Löscht alle Aktivitäten aus der Datenbank.
+pub fn delete_all_activities(conn: &Connection) -> Result<usize, DbError> {
+    let count = conn.execute("DELETE FROM activities", [])?;
+    Ok(count)
+}
+
+/// Gibt die Anzahl der Aktivitäten zurück.
+pub fn count_activities(conn: &Connection) -> Result<i64, DbError> {
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM activities", [], |row| row.get(0))?;
+    Ok(count)
+}
