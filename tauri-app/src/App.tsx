@@ -9,23 +9,34 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { Activity, Project } from "./types";
 import "./App.css";
 
+type AppStats = {
+  activity_count: number;
+  project_count: number;
+};
+
 export default function App() {
   const [isTracking, setIsTracking] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const [activityCount, setActivityCount] = useState(0);
+  const [tableRevision, setTableRevision] = useState(0);
+  const [dwellRevision, setDwellRevision] = useState(0);
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     const saved = localStorage.getItem("theme");
     return saved === "light" ? "light" : "dark";
   });
 
-  // Theme auf document.documentElement setzen
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
   }, [theme]);
 
-  // Beim App-Start: Tracking-Status, aktives Projekt und Aktivitäten laden
+  function refreshActivityCount() {
+    invoke<AppStats>("get_app_stats")
+      .then((stats) => setActivityCount(Number(stats.activity_count)))
+      .catch((e) => console.error("get_app_stats failed", e));
+  }
+
   useEffect(() => {
     invoke<boolean>("is_tracking")
       .then((running) => {
@@ -41,28 +52,37 @@ export default function App() {
       .then((project) => setActiveProject(project))
       .catch((e) => console.error("get_active_project failed", e));
 
-    loadActivities();
+    refreshActivityCount();
   }, []);
 
-  function loadActivities() {
-    invoke<Activity[]>("get_activities")
-      .then((rows) => setActivities(rows))
-      .catch((e) => console.error("get_activities failed", e));
-  }
-
   function handleDataCleared() {
-    loadActivities();
     setActiveProject(null);
+    setTableRevision((r) => r + 1);
+    setDwellRevision((r) => r + 1);
+    refreshActivityCount();
   }
 
-  // Event-Listener für neue Aktivitäten
+  // Pie/Statistik periodisch aktualisieren, ohne bei jedem 2s-Sample die UI zu triggern
+  useEffect(() => {
+    if (!isTracking) return;
+
+    const id = window.setInterval(() => {
+      setDwellRevision((r) => r + 1);
+      refreshActivityCount();
+    }, 10_000);
+
+    return () => window.clearInterval(id);
+  }, [isTracking]);
+
   useEffect(() => {
     let cancelled = false;
 
     const setupListener = async () => {
-      const unlisten = await listen<Activity>("new-activity", (event) => {
+      const unlisten = await listen<Activity>("new-activity", () => {
         if (!cancelled) {
-          setActivities((prev) => [event.payload, ...prev]);
+          setTableRevision((r) => r + 1);
+          setDwellRevision((r) => r + 1);
+          refreshActivityCount();
         }
       });
 
@@ -106,7 +126,6 @@ export default function App() {
   return (
     <main className={styles.Page}>
       <Tabs.Root className={styles.Tabs} defaultValue="overview">
-        {/* tabsliste */}
         <Tabs.List className={styles.List}>
           <Tabs.Tab className={styles.Tab} value="overview">
             Übersicht
@@ -120,7 +139,6 @@ export default function App() {
           <Tabs.Indicator className={styles.Indicator} />
         </Tabs.List>
 
-        {/* einzelne inhalte der tabsliste */}
         <Tabs.Panel className={styles.Panel} value="overview">
           <OverviewPanel
             isTracking={isTracking}
@@ -128,7 +146,9 @@ export default function App() {
             onStopTracking={handleStopTracking}
             statusError={statusError}
             activeProject={activeProject}
-            activities={activities}
+            activityCount={activityCount}
+            tableRevision={tableRevision}
+            dwellRevision={dwellRevision}
             onProjectSelected={setActiveProject}
           />
         </Tabs.Panel>

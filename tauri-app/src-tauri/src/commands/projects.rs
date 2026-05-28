@@ -1,9 +1,13 @@
+//! Projekt-Commands: Ordner wählen, Projekte listen und aktives Projekt setzen.
+//!
+//! Das aktive Projekt liegt zusätzlich im `TrackingState` (für Inserts im Tracking-Loop).
+
 use std::path::Path;
 use tauri::State;
 
 use crate::dto::project::ProjectDto;
 use crate::error::ApiError;
-use rustime_db::{list_projects, upsert_project, get_project_by_id};
+use rustime_db::{get_project_by_id, list_projects, upsert_project};
 use rustime_tracking::{current_timestamp, TrackingState};
 
 // Leitet aus einem Dateipfad einen sinnvollen Projektnamen ab.
@@ -16,8 +20,12 @@ fn name_from_path(path: &str) -> String {
         .to_string()
 }
 
+/// Speichert ein Projekt aus dem Ordner-Dialog (Upsert) und setzt es als aktiv.
 #[tauri::command]
-pub fn select_project_path(state: State<TrackingState>, path: String) -> Result<ProjectDto, ApiError> {
+pub fn select_project_path(
+    state: State<TrackingState>,
+    path: String,
+) -> Result<ProjectDto, ApiError> {
     // Name wird aus dem letzten Pfadsegment gebildet (z. B. Ordnername).
     let name = name_from_path(&path);
 
@@ -28,7 +36,8 @@ pub fn select_project_path(state: State<TrackingState>, path: String) -> Result<
         .map_err(|_| ApiError::new("DB_LOCK_FAILED", "Datenbank-Lock fehlgeschlagen"))?;
 
     // Projekt anlegen oder aktualisieren (Upsert), inkl. Zeitstempel.
-    let project = upsert_project(&db_conn, &name, &path, current_timestamp()).map_err(ApiError::from)?;
+    let project =
+        upsert_project(&db_conn, &name, &path, current_timestamp()).map_err(ApiError::from)?;
 
     // DB-Lock früh freigeben, bevor der nächste Lock angefordert wird.
     drop(db_conn);
@@ -41,9 +50,14 @@ pub fn select_project_path(state: State<TrackingState>, path: String) -> Result<
     *active = Some((project.id, project.name.clone()));
 
     // DTO ist die API-Antwort für das Frontend.
-    Ok(ProjectDto { id: project.id, name: project.name, path: project.path })
+    Ok(ProjectDto {
+        id: project.id,
+        name: project.name,
+        path: project.path,
+    })
 }
 
+/// Listet alle in der Datenbank gespeicherten Projekte.
 #[tauri::command]
 pub fn get_projects(state: State<TrackingState>) -> Result<Vec<ProjectDto>, ApiError> {
     // Lesender Zugriff auf die DB; Rückgabe aller bekannten Projekte.
@@ -54,9 +68,17 @@ pub fn get_projects(state: State<TrackingState>) -> Result<Vec<ProjectDto>, ApiE
 
     // Domain-/DB-Modelle werden in transportfähige DTOs umgewandelt.
     let rows = list_projects(&db_conn).map_err(ApiError::from)?;
-    Ok(rows.into_iter().map(|p| ProjectDto { id: p.id, name: p.name, path: p.path }).collect())
+    Ok(rows
+        .into_iter()
+        .map(|p| ProjectDto {
+            id: p.id,
+            name: p.name,
+            path: p.path,
+        })
+        .collect())
 }
 
+/// Gibt das aktuell aktive Projekt zurück (ohne DB-Pfad-Lookup).
 #[tauri::command]
 pub fn get_active_project(state: State<TrackingState>) -> Option<ProjectDto> {
     // Optionaler Read-Only-Zugriff: Bei Lock-Fehler oder None wird None geliefert.
@@ -70,6 +92,7 @@ pub fn get_active_project(state: State<TrackingState>) -> Option<ProjectDto> {
     })
 }
 
+/// Setzt ein bestehendes Projekt anhand der ID als aktiv (z. B. aus der Projektliste).
 #[tauri::command]
 pub fn set_active_project(
     state: State<TrackingState>,
@@ -96,5 +119,9 @@ pub fn set_active_project(
         .map_err(|_| ApiError::new("LOCK_POISONED", "Projekt-Lock fehlgeschlagen"))?;
     *active = Some((project.id, project.name.clone()));
     // Rückgabe an das Frontend zur direkten UI-Aktualisierung.
-    Ok(ProjectDto { id: project.id, name: project.name, path: project.path })
+    Ok(ProjectDto {
+        id: project.id,
+        name: project.name,
+        path: project.path,
+    })
 }

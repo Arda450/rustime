@@ -1,9 +1,11 @@
-import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { parseWindowContext, formatContextLabel } from "../utils/WindowContext";
-import { Activity, Project } from "../types";
+import { Project } from "../types";
 import { ProjectPickerButton } from "./ProjectPickerButton";
 import { useProjectPicker } from "../hooks/useProjectPicker";
+import { useEffect, useState } from "react";
+import ActivityPieChart from "./charts/PieChart";
+import type { PieSegment } from "./charts/PieChart";
+import { ActivitiesTable } from "./ActivitiesTable";
 
 type OverviewPanelProps = {
   isTracking: boolean;
@@ -11,7 +13,9 @@ type OverviewPanelProps = {
   onStopTracking: () => Promise<void> | void;
   statusError?: string | null;
   activeProject: Project | null;
-  activities: Activity[];
+  activityCount: number;
+  tableRevision: number;
+  dwellRevision: number;
   onProjectSelected: (project: Project) => void;
 };
 
@@ -76,16 +80,43 @@ function OverviewPanel({
   onStopTracking,
   statusError,
   activeProject,
-  activities,
+  activityCount,
+  tableRevision,
+  dwellRevision,
   onProjectSelected,
 }: OverviewPanelProps) {
   const [exportMsg, setExportMsg] = useState("");
   const [exportPreview, setExportPreview] = useState("");
   const [isExporting, setIsExporting] = useState(false);
+  const [dwellSegments, setDwellSegments] = useState<PieSegment[]>([]);
 
   const { pickProject, isPicking, error, clearError } = useProjectPicker({
     onProjectSelected,
   });
+
+  useEffect(() => {
+    if (!activeProject) {
+      setDwellSegments([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    invoke<PieSegment[]>("get_dwell_by_category", {
+      projectId: activeProject.id,
+      maxSegmentGapSeconds: 120,
+      tailSeconds: 2,
+      topN: 10,
+    })
+      .then((segments) => {
+        if (!cancelled) setDwellSegments(segments);
+      })
+      .catch((e) => console.error("get_dwell_by_category failed", e));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProject, dwellRevision]);
 
   async function chooseProjectFromOverview() {
     clearError();
@@ -127,6 +158,8 @@ function OverviewPanel({
       setIsExporting(false);
     }
   }
+
+  const tableProjectId = activeProject?.id ?? null;
 
   return (
     <section className="container">
@@ -171,34 +204,19 @@ function OverviewPanel({
       )}
 
       <div style={{ marginTop: "20px" }}>
-        <h3>Erfasste Fenster ({activities.length})</h3>
-        {activities.length === 0 ? (
+        {activityCount === 0 ? (
           <p style={{ color: "var(--muted)", fontStyle: "italic" }}>
             Noch keine Aktivitäten erfasst. Starte das Tracking, um Fenster zu
             erfassen.
           </p>
         ) : (
-          <ul
-            style={{ textAlign: "left", maxHeight: "200px", overflow: "auto" }}
-          >
-            {activities.map((activity, index) => {
-              const parsed = parseWindowContext(activity.title);
-              const label = formatContextLabel(parsed);
-
-              return (
-                <li key={index}>
-                  {new Date(activity.timestamp * 1000).toLocaleTimeString()}:{" "}
-                  {label}
-                  {parsed.raw && parsed.raw !== label ? ` (${parsed.raw})` : ""}
-                  {activity.project_name && (
-                    <span style={{ marginLeft: 8, opacity: 0.7 }}>
-                      [{activity.project_name}]
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <div style={{ marginTop: "20px" }}>
+            <h3>Erfasste Fenster</h3>
+            <ActivitiesTable
+              projectId={tableProjectId}
+              refreshKey={tableRevision}
+            />
+          </div>
         )}
       </div>
 
@@ -212,14 +230,14 @@ function OverviewPanel({
       >
         <button
           onClick={previewJsonUi}
-          disabled={isExporting || activities.length === 0}
+          disabled={isExporting || activityCount === 0}
         >
           {isExporting ? "Lade Vorschau..." : "JSON in UI anzeigen"}
         </button>
 
         <button
           onClick={exportJsonToDownloads}
-          disabled={isExporting || activities.length === 0}
+          disabled={isExporting || activityCount === 0}
         >
           {isExporting ? "Export läuft..." : "JSON in Downloads speichern"}
         </button>
@@ -239,6 +257,26 @@ function OverviewPanel({
           {exportPreview}
         </pre>
       )}
+
+      <div style={{ marginTop: "20px" }}>
+        <h3>Zeitverteilung (aktives Projekt)</h3>
+        <p
+          style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: 8 }}
+        >
+          Geschätzte Verweildauer pro Kategorie aus den Samples (nicht jede
+          einzelne Aktivität). Wechselt automatisch mit dem aktiven Projekt.
+        </p>
+        {!activeProject ? (
+          <p style={{ color: "var(--muted)", fontStyle: "italic" }}>
+            Projekt wählen, um das Diagramm zu sehen.
+          </p>
+        ) : (
+          <ActivityPieChart
+            data={dwellSegments}
+            emptyHint="Für dieses Projekt liegen noch keine Aktivitäten vor."
+          />
+        )}
+      </div>
     </section>
   );
 }

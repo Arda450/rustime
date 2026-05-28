@@ -1,3 +1,5 @@
+//! Export-Commands: Aktivitäten als JSON für Vorschau oder Datei im Download-Ordner.
+
 use std::path::PathBuf;
 
 use chrono::{Local, TimeZone, Utc};
@@ -8,6 +10,7 @@ use crate::error::ApiError;
 use rustime_db::{get_activities_with_projects, ActivityWithProject};
 use rustime_tracking::{current_timestamp, TrackingState};
 
+/// Reichert eine DB-Zeile mit ISO-Zeitstempeln (UTC und lokal) für den Export an.
 fn to_export_activity(a: ActivityWithProject) -> ExportActivity {
     let ts = a.timestamp as i64;
 
@@ -33,6 +36,7 @@ fn to_export_activity(a: ActivityWithProject) -> ExportActivity {
     }
 }
 
+/// Baut die Export-Struktur inkl. Meta-Block (Formatversion, Zeitzone, Anzahl Einträge).
 fn build_payload(activities: Vec<ActivityWithProject>) -> ExportPayload {
     let export_activities: Vec<ExportActivity> =
         activities.into_iter().map(to_export_activity).collect();
@@ -48,8 +52,7 @@ fn build_payload(activities: Vec<ActivityWithProject>) -> ExportPayload {
     }
 }
 
-// gibt json-string in der UI zurück und speichert keine datei lokal
-// liest alle activities aus der database und wandelt sie in eine ExportPayload um
+/// Serialisiert alle Aktivitäten als JSON-String für die UI-Vorschau (keine Datei).
 #[tauri::command]
 pub fn show_activities_json(state: State<TrackingState>) -> Result<String, ApiError> {
     let db_conn = state
@@ -63,6 +66,7 @@ pub fn show_activities_json(state: State<TrackingState>) -> Result<String, ApiEr
         .map_err(|e| ApiError::new("JSON_SERIALIZE_FAILED", e.to_string()))
 }
 
+/// Schreibt einen formatierten JSON-Export in den Download-Ordner; gibt den Dateipfad zurück.
 #[tauri::command]
 pub fn export_activities_json_to_downloads(
     state: State<TrackingState>,

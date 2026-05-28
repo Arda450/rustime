@@ -1,15 +1,19 @@
+//! Einstellungs-Commands: App-Statistiken und Löschen von gespeicherten Daten.
+
 use tauri::State;
 
 use crate::error::ApiError;
 use rustime_db::{count_activities, count_projects, delete_all_activities, delete_all_projects};
 use rustime_tracking::TrackingState;
 
+/// Zähler für die UI (Export-Buttons, Settings-Panel); serialisierbar als JSON.
 #[derive(serde::Serialize)]
 pub struct AppStats {
     pub activity_count: i64,
     pub project_count: i64,
 }
 
+/// Liefert Anzahl Aktivitäten und Projekte in der lokalen Datenbank.
 #[tauri::command]
 pub fn get_app_stats(state: State<TrackingState>) -> Result<AppStats, ApiError> {
     let db_conn = state
@@ -26,6 +30,7 @@ pub fn get_app_stats(state: State<TrackingState>) -> Result<AppStats, ApiError> 
     })
 }
 
+/// Löscht alle Aktivitäten; gibt die Anzahl gelöschter Zeilen zurück.
 #[tauri::command]
 pub fn clear_all_activities(state: State<TrackingState>) -> Result<usize, ApiError> {
     let db_conn = state
@@ -35,15 +40,10 @@ pub fn clear_all_activities(state: State<TrackingState>) -> Result<usize, ApiErr
 
     let count = delete_all_activities(&db_conn).map_err(ApiError::from)?;
 
-    drop(db_conn);
-
-    if let Ok(mut activities) = state.activities.lock() {
-        activities.clear();
-    }
-
     Ok(count)
 }
 
+/// Löscht alle Projekte und zugehörige Aktivitäten; setzt das aktive Projekt zurück.
 #[tauri::command]
 pub fn clear_all_projects(state: State<TrackingState>) -> Result<usize, ApiError> {
     let db_conn = state
@@ -54,11 +54,6 @@ pub fn clear_all_projects(state: State<TrackingState>) -> Result<usize, ApiError
     delete_all_activities(&db_conn).map_err(ApiError::from)?;
     let count = delete_all_projects(&db_conn).map_err(ApiError::from)?;
 
-    drop(db_conn);
-
-    if let Ok(mut activities) = state.activities.lock() {
-        activities.clear();
-    }
     if let Ok(mut active_project) = state.active_project.lock() {
         *active_project = None;
     }

@@ -53,18 +53,10 @@ export function ProjectsPanel({
 
   return (
     <section className="container">
-      <h2>Projekte</h2>
-
       <ProjectPickerButton onPick={chooseProject} loading={isPicking} />
 
       <p>{msg}</p>
       {error && <p style={{ color: "red" }}>{error}</p>}
-
-      {activeProject && (
-        <p>
-          Aktiv: {activeProject.name} ({activeProject.path})
-        </p>
-      )}
 
       <ul>
         {projects.map((p) => {

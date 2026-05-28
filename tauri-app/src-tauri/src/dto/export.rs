@@ -1,5 +1,8 @@
+//! DTOs für den JSON-Export (Vorschau in der UI und Datei in Downloads).
+
 use serde::Serialize;
 
+/// Metadaten zum Export-Lauf (Versionierung, Zeitpunkt, Umfang).
 #[derive(Serialize)]
 pub struct ExportMeta {
     pub format_version: u32,
@@ -8,6 +11,7 @@ pub struct ExportMeta {
     pub timezone: String,
 }
 
+/// Eine exportierte Aktivität mit maschinen- und menschenlesbaren Zeitstempeln.
 #[derive(Serialize)]
 pub struct ExportActivity {
     pub title: String,
@@ -18,6 +22,7 @@ pub struct ExportActivity {
     pub project_name: Option<String>,
 }
 
+/// Wurzelobjekt der Export-JSON-Datei (`meta` + `activities`).
 #[derive(Serialize)]
 pub struct ExportPayload {
     pub meta: ExportMeta,

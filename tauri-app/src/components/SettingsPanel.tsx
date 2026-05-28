@@ -77,15 +77,11 @@ export function SettingsPanel({
 
   return (
     <section className="container">
-      <h2>Einstellungen</h2>
-
       {/* Erscheinungsbild */}
       <div className="settingsSection">
         <div className="settingRow">
           <div className="settingLabel">
-            <span> {theme === "dark" ? "Dark" : "Light"} Mode</span>
-
-            <span>Farbschema wechseln</span>
+            <h4> {theme === "dark" ? "Dark" : "Light"} Mode</h4>
           </div>
           <div
             className={`toggleSwitch ${theme === "dark" ? "active" : ""}`}

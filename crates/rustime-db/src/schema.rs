@@ -12,6 +12,7 @@ pub fn init_database() -> Result<Connection, DbError> {
 
     conn.execute("PRAGMA foreign_keys = ON", [])?;
 
+    // erstellt die tabelle für die projekte
     conn.execute(
         "CREATE TABLE IF NOT EXISTS projects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,6 +23,7 @@ pub fn init_database() -> Result<Connection, DbError> {
         [],
     )?;
 
+    // erstellt die tabelle für die aktivitäten
     conn.execute(
         "CREATE TABLE IF NOT EXISTS activities (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,6 +33,8 @@ pub fn init_database() -> Result<Connection, DbError> {
         )",
         [],
     )?;
+
+    // erstellt den index für die aktivitäten nach timestamp und project_id, damit die datenbank schneller suchen kann
 
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_activities_timestamp ON activities(timestamp)",
