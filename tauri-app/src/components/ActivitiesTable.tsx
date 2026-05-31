@@ -143,25 +143,32 @@ export function ActivitiesTable({
         </tbody>
       </table>
 
-      <div
-        style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}
-      >
-        <button
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          Zurück
-        </button>
-        <button
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          Weiter
-        </button>
-        <span style={{ color: "var(--muted)" }}>
+      <div>
+        <span className="pageInfo">
           Seite {pagination.pageIndex + 1} / {pageCount} ({pageData.total_count}{" "}
           Einträge)
         </span>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            marginTop: 8,
+            alignItems: "center",
+          }}
+        >
+          <button
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Zurück
+          </button>
+          <button
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Weiter
+          </button>
+        </div>
       </div>
     </div>
   );

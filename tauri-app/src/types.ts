@@ -21,3 +21,13 @@ export type ActivitiesPage = {
   items: Activity[];
   total_count: number;
 };
+
+export type TimeSeriesPoint = {
+  ts: number;
+  value: number;
+};
+
+export type CategoryTimeSeriesPoint = {
+  ts: number;
+  categories: { name: string; value: number }[];
+};

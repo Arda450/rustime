@@ -17,3 +17,24 @@ pub struct ActivitiesPageDto {
     pub items: Vec<ActivityDto>,
     pub total_count: i64,
 }
+
+/// Ein Punkt im Zeitverlauf (Bucket-Start + Dauer in Sekunden).
+#[derive(Serialize)]
+pub struct TimeSeriesPointDto {
+    pub ts: u64,
+    pub value: u64,
+}
+
+/// Eine Kategorie mit Dauer in Sekunden für ein Zeitfenster.
+#[derive(Serialize)]
+pub struct CategoryValueDto {
+    pub name: String,
+    pub value: u64,
+}
+
+/// Ein Zeitfenster mit mehreren Kategorie-Werten (für gestapelte Charts).
+#[derive(Serialize)]
+pub struct CategoryTimeSeriesPointDto {
+    pub ts: u64,
+    pub categories: Vec<CategoryValueDto>,
+}

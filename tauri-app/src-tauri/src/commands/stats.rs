@@ -6,11 +6,15 @@
 use tauri::State;
 
 use crate::dto::activity::ActivityDto;
-use crate::dto::stats::{ActivitiesPageDto, DwellSegmentDto};
+use crate::dto::stats::{
+    ActivitiesPageDto, CategoryTimeSeriesPointDto, CategoryValueDto, DwellSegmentDto,
+    TimeSeriesPointDto,
+};
 use crate::error::ApiError;
 use rustime_db::{
-    dwell_by_category, get_activities_for_project_asc,
-    get_activities_page as db_get_activities_page, DwellOptions,
+    dwell_by_category, dwell_time_series, dwell_time_series_by_category,
+    get_activities_for_project_asc, get_activities_page as db_get_activities_page, DwellOptions,
+    TimeSeriesOptions,
 };
 use rustime_tracking::TrackingState;
 
@@ -74,4 +78,80 @@ pub fn get_activities_page(
         items: page_result.items.into_iter().map(row_to_dto).collect(),
         total_count: page_result.total_count,
     })
+}
+
+/// Liefert Zeitverlauf als Buckets (z. B. 15 Minuten) für ein Projekt.
+#[tauri::command]
+pub fn get_time_series(
+    state: State<TrackingState>,
+    project_id: i64,
+    from_ts: u64,
+    to_ts: u64,
+    bucket_seconds: Option<u64>,
+    max_segment_gap_seconds: Option<u64>,
+    tail_seconds: Option<u64>,
+) -> Result<Vec<TimeSeriesPointDto>, ApiError> {
+    let db_conn = state
+        .db
+        .lock()
+        .map_err(|_| ApiError::new("DB_LOCK_FAILED", "Datenbank-Lock fehlgeschlagen"))?;
+
+    let rows = get_activities_for_project_asc(&db_conn, project_id).map_err(ApiError::from)?;
+
+    let options = TimeSeriesOptions {
+        from_ts,
+        to_ts,
+        bucket_seconds: bucket_seconds.unwrap_or(900).max(60),
+        max_segment_gap_seconds: max_segment_gap_seconds.unwrap_or(120),
+        tail_seconds: tail_seconds.unwrap_or(2),
+    };
+
+    let points = dwell_time_series(&rows, options);
+    Ok(points
+        .into_iter()
+        .map(|p| TimeSeriesPointDto {
+            ts: p.bucket_start_ts,
+            value: p.value_seconds,
+        })
+        .collect())
+}
+
+/// Liefert Zeitverlauf pro Kategorie (für gestapelte Charts) für ein Projekt.
+#[tauri::command]
+pub fn get_time_series_by_category(
+    state: State<TrackingState>,
+    project_id: i64,
+    from_ts: u64,
+    to_ts: u64,
+    bucket_seconds: Option<u64>,
+    max_segment_gap_seconds: Option<u64>,
+    tail_seconds: Option<u64>,
+) -> Result<Vec<CategoryTimeSeriesPointDto>, ApiError> {
+    let db_conn = state
+        .db
+        .lock()
+        .map_err(|_| ApiError::new("DB_LOCK_FAILED", "Datenbank-Lock fehlgeschlagen"))?;
+
+    let rows = get_activities_for_project_asc(&db_conn, project_id).map_err(ApiError::from)?;
+
+    let options = TimeSeriesOptions {
+        from_ts,
+        to_ts,
+        bucket_seconds: bucket_seconds.unwrap_or(900).max(60),
+        max_segment_gap_seconds: max_segment_gap_seconds.unwrap_or(120),
+        tail_seconds: tail_seconds.unwrap_or(2),
+    };
+
+    let points = dwell_time_series_by_category(&rows, options);
+    Ok(points
+        .into_iter()
+        .map(|p| CategoryTimeSeriesPointDto {
+            ts: p.bucket_start_ts,
+            categories: p
+                .by_category
+                .into_iter()
+                .map(|(name, value)| CategoryValueDto { name, value })
+                .collect(),
+        })
+        .collect())
 }

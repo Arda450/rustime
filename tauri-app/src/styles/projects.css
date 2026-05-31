@@ -1,0 +1,27 @@
+.projectRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.projectLabel {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.projectActionBtn {
+  flex: 0 0 auto;
+  max-width: 140px;
+  white-space: nowrap;
+}
+
+.greenDotActive {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}

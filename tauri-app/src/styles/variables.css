@@ -1,0 +1,31 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+
+:root {
+  --bg-0: #070707;
+  --bg-1: #0b0b0b;
+  --bg-gradient-end: #050505;
+  --surface: #121212e6;
+  --surface-strong: #101010f2;
+  --border: #2a2a2a;
+  --text: #f0f0f0;
+  --text-inverse: #1a1a1a;
+  --muted: #a1a1a1;
+  --radius: 8px;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --accent: #4a9;
+  --danger: #e54;
+  --warning: #f80;
+}
+
+[data-theme="light"] {
+  --bg-0: #e8e8e8;
+  --bg-1: #f5f5f5;
+  --bg-gradient-end: #d8d8d8;
+  --surface: #ffffffee;
+  --surface-strong: #f0f0f0f5;
+  --border: #c0c0c0;
+  --text: #1a1a1a;
+  --text-inverse: #f0f0f0;
+  --muted: #555555;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}

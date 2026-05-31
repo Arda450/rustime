@@ -87,9 +87,14 @@ pub fn start_tracking(state: State<TrackingState>, app: AppHandle) {
 }
 
 /// Stoppt den Hintergrund-Thread (setzt `is_running` auf false).
+pub fn stop_tracking_internal(state: &TrackingState) {
+    state.is_running.store(false, Ordering::SeqCst);
+}
+
+/// Stoppt den Hintergrund-Thread (setzt `is_running` auf false).
 #[tauri::command]
 pub fn stop_tracking(state: State<TrackingState>) {
-    state.is_running.store(false, Ordering::SeqCst);
+    stop_tracking_internal(&state);
 }
 
 /// Liefert alle Aktivitäten mit Projekt-Info (Legacy, ohne Paginierung).

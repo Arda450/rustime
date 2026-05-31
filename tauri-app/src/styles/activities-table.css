@@ -1,0 +1,23 @@
+.activitiesTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.activitiesTable th,
+.activitiesTable td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.activitiesTable th {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.pageInfo {
+  display: block;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 8px;
+}

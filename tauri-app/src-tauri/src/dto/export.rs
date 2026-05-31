@@ -15,6 +15,7 @@ pub struct ExportMeta {
 #[derive(Serialize)]
 pub struct ExportActivity {
     pub title: String,
+    pub context_label: String,
     pub timestamp: u64,
     pub timestamp_utc: String,
     pub timestamp_local: String,

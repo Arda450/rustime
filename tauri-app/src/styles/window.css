@@ -1,0 +1,19 @@
+/* Mindestgrösse des App-Fensters (siehe auch minWidth/minHeight in tauri.conf.json) */
+:root {
+  --window-min-width: 700px;
+  --window-min-height: 500px;
+}
+
+html,
+body,
+#root {
+  min-width: var(--window-min-width);
+  min-height: var(--window-min-height);
+}
+
+/* Fallback im Vite-Dev (Browser): unter 1000px horizontal scrollen */
+@media (max-width: 1000px) {
+  body {
+    overflow-x: auto;
+  }
+}

@@ -2,6 +2,7 @@
 
 use tauri::State;
 
+use crate::commands::tracking::stop_tracking_internal;
 use crate::error::ApiError;
 use rustime_db::{count_activities, count_projects, delete_all_activities, delete_all_projects};
 use rustime_tracking::TrackingState;
@@ -40,6 +41,8 @@ pub fn clear_all_activities(state: State<TrackingState>) -> Result<usize, ApiErr
 
     let count = delete_all_activities(&db_conn).map_err(ApiError::from)?;
 
+    stop_tracking_internal(&state);
+
     Ok(count)
 }
 
@@ -57,6 +60,8 @@ pub fn clear_all_projects(state: State<TrackingState>) -> Result<usize, ApiError
     if let Ok(mut active_project) = state.active_project.lock() {
         *active_project = None;
     }
+
+    stop_tracking_internal(&state);
 
     Ok(count)
 }

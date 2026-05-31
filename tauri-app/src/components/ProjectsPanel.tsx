@@ -65,8 +65,8 @@ export function ProjectsPanel({
           return (
             <li key={p.id} className="projectRow">
               <span className="projectLabel">
-                {p.name} - {p.path}{" "}
                 {isActive ? <span className="greenDotActive"></span> : null}
+                {p.name} - {p.path}{" "}
               </span>
 
               <button
@@ -75,7 +75,7 @@ export function ProjectsPanel({
                 disabled={isActive}
                 aria-label={`Projekt ${p.name} aktiv setzen`}
               >
-                {isActive ? "Aktiv" : "Aktiv setzen"}
+                {isActive ? "Aktiv" : "Aktivieren"}
               </button>
             </li>
           );

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { AppIcon } from "./Icon";
+import { BarChart, Database, Moon, Sun } from "lucide-react";
 
 type AppStats = {
   activity_count: number;
@@ -81,7 +83,16 @@ export function SettingsPanel({
       <div className="settingsSection">
         <div className="settingRow">
           <div className="settingLabel">
-            <h4> {theme === "dark" ? "Dark" : "Light"} Mode</h4>
+            <h4 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {/* if else für die Icons */}
+              {theme === "dark" ? (
+                <AppIcon icon={Moon} size={16} aria-hidden />
+              ) : (
+                <AppIcon icon={Sun} size={16} aria-hidden />
+              )}
+              {/* if else für den Text */}
+              {theme === "dark" ? "Dark" : "Light"} Mode
+            </h4>
           </div>
           <div
             className={`toggleSwitch ${theme === "dark" ? "active" : ""}`}
@@ -94,16 +105,23 @@ export function SettingsPanel({
 
       {/* Statistiken */}
       <div className="settingsSection">
-        <h3>Statistiken</h3>
+        <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <AppIcon icon={BarChart} size={16} aria-hidden />
+          Statistiken
+        </h3>
         {stats ? (
           <div className="statsGrid">
             <div className="statCard">
               <div className="value">{stats.activity_count}</div>
-              <div className="label">Aktivitäten</div>
+              <div className="label">
+                {stats.activity_count === 1 ? "Aktivität" : "Aktivitäten"}
+              </div>
             </div>
             <div className="statCard">
               <div className="value">{stats.project_count}</div>
-              <div className="label">Projekte</div>
+              <div className="label">
+                {stats.project_count === 1 ? "Projekt" : "Projekte"}
+              </div>
             </div>
           </div>
         ) : (
@@ -113,7 +131,10 @@ export function SettingsPanel({
 
       {/* Datenverwaltung */}
       <div className="settingsSection">
-        <h3>Datenverwaltung</h3>
+        <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <AppIcon icon={Database} size={16} aria-hidden />
+          Datenverwaltung
+        </h3>
         <div className="settingRow">
           <div className="settingLabel">
             <span>Aktivitäten löschen</span>

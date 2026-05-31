@@ -8,6 +8,8 @@ import { ProjectsPanel } from "./components/ProjectsPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Activity, Project } from "./types";
 import "./App.css";
+import { ChartBar, Folder, Settings } from "lucide-react";
+import { AppIcon } from "./components/Icon";
 
 type AppStats = {
   activity_count: number;
@@ -57,6 +59,7 @@ export default function App() {
 
   function handleDataCleared() {
     setActiveProject(null);
+    setIsTracking(false);
     setTableRevision((r) => r + 1);
     setDwellRevision((r) => r + 1);
     refreshActivityCount();
@@ -69,7 +72,7 @@ export default function App() {
     const id = window.setInterval(() => {
       setDwellRevision((r) => r + 1);
       refreshActivityCount();
-    }, 10_000);
+    }, 10_000); // 10 seconds
 
     return () => window.clearInterval(id);
   }, [isTracking]);
@@ -81,7 +84,6 @@ export default function App() {
       const unlisten = await listen<Activity>("new-activity", () => {
         if (!cancelled) {
           setTableRevision((r) => r + 1);
-          setDwellRevision((r) => r + 1);
           refreshActivityCount();
         }
       });
@@ -126,14 +128,22 @@ export default function App() {
   return (
     <main className={styles.Page}>
       <Tabs.Root className={styles.Tabs} defaultValue="overview">
+        <img
+          src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
+          alt="Rustime"
+          className="appLogo"
+        />
         <Tabs.List className={styles.List}>
           <Tabs.Tab className={styles.Tab} value="overview">
+            <AppIcon icon={ChartBar} size={16} aria-hidden />
             Übersicht
           </Tabs.Tab>
           <Tabs.Tab className={styles.Tab} value="projects">
+            <AppIcon icon={Folder} size={16} aria-hidden />
             Projekte
           </Tabs.Tab>
           <Tabs.Tab className={styles.Tab} value="settings">
+            <AppIcon icon={Settings} size={16} aria-hidden />
             Einstellungen
           </Tabs.Tab>
           <Tabs.Indicator className={styles.Indicator} />

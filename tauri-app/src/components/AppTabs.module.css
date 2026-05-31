@@ -1,19 +1,24 @@
 .Page {
-  max-width: 1140px;
-  margin: 0 auto;
-  padding: 26px 18px 22px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 20px 20px 24px;
+  box-sizing: border-box;
 }
 
 .Tabs {
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  align-items: stretch;
 }
 
 .List {
   position: relative;
   display: flex;
   justify-content: center;
+  align-self: center;
   gap: 8px;
   padding: 6px;
   border: 1px solid var(--border);
@@ -56,10 +61,12 @@
 }
 
 .Panel {
+  width: 100%;
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 18px;
+  padding: 18px 20px;
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
+  box-sizing: border-box;
 }

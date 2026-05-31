@@ -10,7 +10,10 @@ pub use activity_repo::{
     get_activities_for_project_asc, get_activities_page, get_activities_with_projects,
     get_all_activities, insert_activity_with_project, ActivitiesPage, ActivityWithProject,
 };
-pub use dwell::{dwell_by_category, DwellOptions, DwellSegment};
+pub use dwell::{
+    dwell_by_category, dwell_time_series, dwell_time_series_by_category, CategoryTimeSeriesPoint,
+    DwellOptions, DwellSegment, TimeSeriesOptions, TimeSeriesPoint,
+};
 pub use error::DbError;
 pub use project_repo::{
     count_projects, delete_all_projects, get_project_by_id, list_projects, upsert_project,

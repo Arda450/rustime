@@ -3,22 +3,17 @@ import {
   PieChart,
   PieLabelRenderProps,
   PieSectorShapeProps,
+  ResponsiveContainer,
   Sector,
   Tooltip,
 } from "recharts";
 import { formatDurationSeconds } from "../../utils/dwellByCategory.ts";
+import { colorForCategory } from "../../utils/chartColors";
+import { pieTooltipProps } from "./ChartTooltip";
 
 export type PieSegment = { name: string; value: number };
 
 const RADIAN = Math.PI / 180;
-const COLORS = [
-  "#0088FE",
-  "#00C49F",
-  "#FFBB28",
-  "#FF8042",
-  "#8884d8",
-  "#82ca9d",
-];
 
 const renderCustomizedLabel = ({
   cx,
@@ -50,21 +45,24 @@ const renderCustomizedLabel = ({
   );
 };
 
-const MyCustomPie = (props: PieSectorShapeProps) => {
-  return (
-    <Sector {...props} fill={COLORS[(props.index ?? 0) % COLORS.length]} />
-  );
-};
+function makePieShape(categoryOrder: readonly string[]) {
+  return function PieShape(props: PieSectorShapeProps) {
+    const name = (props.payload as PieSegment | undefined)?.name ?? "";
+    return <Sector {...props} fill={colorForCategory(name, categoryOrder)} />;
+  };
+}
 
 type Props = {
   data: PieSegment[];
+  categoryOrder: readonly string[];
   isAnimationActive?: boolean;
   emptyHint?: string;
 };
 
-export default function PieChartWithCustomizedLabel({
+export default function ActivityPieChart({
   data,
-  isAnimationActive = true,
+  categoryOrder,
+  isAnimationActive = false,
   emptyHint = "Keine Daten für dieses Projekt.",
 }: Props) {
   if (data.length === 0) {
@@ -75,63 +73,32 @@ export default function PieChartWithCustomizedLabel({
     );
   }
 
-  const total = data.reduce((sum, d) => sum + d.value, 0);
+  const pieShape = makePieShape(categoryOrder);
 
   return (
-    <div className="pieChartWithLegend">
-      <PieChart
-        style={{
-          width: "100%",
-          maxWidth: "420px",
-          maxHeight: "70vh",
-          aspectRatio: 1,
-        }}
-        responsive
-      >
-        <Tooltip
-          formatter={(value) => {
-            const numericValue =
-              typeof value === "number" ? value : Number(value ?? 0);
-            return formatDurationSeconds(numericValue);
-          }}
-          contentStyle={{
-            background: "var(--surface-strong)",
-            border: "1px solid var(--border)",
-            color: "var(--text)",
-          }}
-        />
-        <Pie
-          data={data}
-          nameKey="name"
-          dataKey="value"
-          labelLine={false}
-          label={renderCustomizedLabel}
-          fill="#8884d8"
-          isAnimationActive={isAnimationActive}
-          shape={MyCustomPie}
-        />
-      </PieChart>
-
-      <ul className="pieLegend">
-        {data.map((entry, index) => {
-          const color = COLORS[index % COLORS.length];
-          const percent =
-            total > 0 ? Math.round((entry.value / total) * 100) : 0;
-          return (
-            <li key={entry.name} className="pieLegendItem">
-              <span
-                className="pieLegendDot"
-                style={{ backgroundColor: color }}
-                aria-hidden
-              />
-              <span className="pieLegendLabel">{entry.name}</span>
-              <span className="pieLegendMeta">
-                {formatDurationSeconds(entry.value)} ({percent}%)
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+    <div className="pieChartPlot">
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Tooltip
+            {...pieTooltipProps}
+            formatter={(value) => {
+              const numericValue =
+                typeof value === "number" ? value : Number(value ?? 0);
+              return formatDurationSeconds(numericValue);
+            }}
+          />
+          <Pie
+            data={data}
+            nameKey="name"
+            dataKey="value"
+            labelLine={false}
+            label={renderCustomizedLabel}
+            fill="#8884d8"
+            isAnimationActive={isAnimationActive}
+            shape={pieShape}
+          />
+        </PieChart>
+      </ResponsiveContainer>
     </div>
   );
 }

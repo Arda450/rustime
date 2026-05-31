@@ -1,0 +1,196 @@
+.chartWithSharedLegend {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  width: 100%;
+}
+
+.chartPane {
+  width: 100%;
+  min-width: 0;
+  min-height: 400px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.pieChartPlot {
+  width: 100%;
+  max-width: 500px;
+  height: min(500px, 55vh);
+  min-height: 360px;
+  margin: 0 auto;
+}
+
+.timeSeriesChartWrap {
+  width: 100%;
+}
+
+.timeSeriesChartCaption {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.timeSeriesChartPlot {
+  width: 100%;
+  height: 500px;
+}
+
+.chartPaneRefreshing::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: var(--radius);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  opacity: 0.35;
+}
+
+.chartLegend {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  background: var(--surface-strong);
+  box-sizing: border-box;
+}
+
+.chartLegendHint {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.chartLegendList {
+  list-style: none;
+  margin: 0;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 28px;
+}
+
+@media (max-width: 520px) {
+  .chartLegendList {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chartLegendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text);
+  min-width: 0;
+}
+
+.chartLegendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chartLegendLabel {
+  flex: 1;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chartLegendMeta {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.chartTooltip {
+  box-sizing: border-box;
+}
+
+.chartTooltipTitle {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.chartTooltipList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: visible;
+  max-height: none;
+}
+
+.chartTooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.chartTooltipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chartTooltipName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chartTooltipValue {
+  color: var(--muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.chartViewSwitch {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.chartViewBtn {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-weight: 700;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: var(--muted);
+  background: var(--surface);
+  cursor: pointer;
+  transition: 120ms ease;
+}
+
+.chartViewBtn:hover {
+  color: var(--text);
+  filter: brightness(1.05);
+}
+
+.chartViewBtnActive {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--surface-strong);
+}
