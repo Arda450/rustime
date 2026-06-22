@@ -3,11 +3,11 @@
 use std::path::PathBuf;
 
 use chrono::{Local, TimeZone, Utc};
-use rustime_core::window_context::format_context_label_from_title;
 use tauri::State;
-
 use crate::dto::export::{ExportActivity, ExportMeta, ExportPayload};
 use crate::error::ApiError;
+
+use rustime_core::window_context::format_context_label_from_title;
 use rustime_db::{get_activities_with_projects, ActivityWithProject};
 use rustime_tracking::{current_timestamp, TrackingState};
 

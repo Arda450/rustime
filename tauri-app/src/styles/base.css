@@ -1,3 +1,9 @@
+/**
+ * base.css – Globale Basis-Styles
+ * Komponenten: App.tsx (indirekt), Icon.tsx (.appIcon), App-Logo <img>
+ */
+
+/* --- Reset / Seitenhintergrund --- */
 * {
   box-sizing: border-box;
 }
@@ -23,11 +29,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* --- Icon.tsx (lucide über AppIcon) --- */
 .appIcon {
   flex-shrink: 0;
   display: block;
 }
 
+/* --- App.tsx: Logo oben links --- */
 .appLogo {
   width: 55px;
   height: 55px;
@@ -36,5 +44,4 @@ body {
   left: 20px;
   object-fit: contain;
   margin-bottom: 20px;
-  /* outline: red 1px solid; */
 }

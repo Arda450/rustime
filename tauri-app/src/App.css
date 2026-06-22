@@ -1,11 +1,18 @@
-/* Globale Styles – aufgeteilt nach Bereich unter ./styles/ */
-@import "./styles/variables.css";
-@import "./styles/window.css";
-@import "./styles/base.css";
-@import "./styles/buttons.css";
-@import "./styles/layout.css";
-@import "./styles/overview.css";
-@import "./styles/settings.css";
-@import "./styles/projects.css";
-@import "./styles/activities-table.css";
-@import "./styles/charts.css";
+/**
+ * App.css – Einstiegspunkt für globale Styles
+ * Importiert alle Bereichs-Stylesheets (Reihenfolge beachten: Variablen zuerst).
+ * Geladen in: main.tsx → App.tsx
+ */
+
+@import "./styles/variables.css"; /* Design-Tokens, Hell/Dunkel */
+@import "./styles/window.css"; /* html/body/#root, Fenster-Mindestgrösse */
+@import "./styles/base.css"; /* Globale Basis, App-Logo, App-Icon */
+@import "./styles/scrollbars.css"; /* Einheitliche Scrollbar-Farben */
+@import "./styles/buttons.css"; /* Alle <button> und <input> app-weit */
+@import "./styles/layout.css"; /* Gemeinsame Section-Layouts (.container) */
+@import "./styles/overview.css"; /* OverviewPanel.tsx */
+@import "./styles/settings.css"; /* SettingsPanel.tsx */
+@import "./styles/projects.css"; /* ProjectsPanel.tsx (Projektzeilen) */
+@import "./styles/activities-table.css"; /* ActivitiesTable.tsx */
+@import "./styles/charts.css"; /* PieChart, TimeSeriesChart, ChartLegend, ChartTooltip, OverviewPanel Charts */
+@import "./styles/daily-report.css"; /* DailyReportView */

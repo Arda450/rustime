@@ -1,3 +1,9 @@
+/**
+ * settings.css – Tab „Einstellungen“
+ * Komponente: SettingsPanel.tsx (innerhalb section.container aus layout.css)
+ */
+
+/* --- Abschnitte: Theme, Statistik, Daten löschen --- */
 .settingsSection {
   margin: 10px 0;
   padding: 16px;
@@ -14,6 +20,7 @@
   color: var(--text);
 }
 
+/* --- Zeile mit Label links, Steuerung rechts --- */
 .settingRow {
   display: flex;
   justify-content: space-between;
@@ -54,6 +61,7 @@
   font-size: 0.9rem;
 }
 
+/* --- Theme-Umschalter (Hell/Dunkel) --- */
 .toggleSwitch {
   position: relative;
   width: 48px;
@@ -84,6 +92,7 @@
   transform: translateX(22px);
 }
 
+/* --- Zähler Aktivitäten / Projekte --- */
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -111,6 +120,7 @@
   margin-top: 4px;
 }
 
+/* --- Fusszeile App-Info --- */
 .appInfo {
   margin-top: 20px;
   padding: 12px;

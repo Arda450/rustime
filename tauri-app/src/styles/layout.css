@@ -1,3 +1,10 @@
+/**
+ * layout.css – Gemeinsame Section- und Listen-Layouts
+ * Komponenten: ProjectsPanel.tsx, SettingsPanel.tsx (section.container)
+ * Legacy-Klassen: .trackingCard, .activitiesCard (falls noch verwendet)
+ */
+
+/* --- ProjectsPanel, SettingsPanel: äusserer Bereich --- */
 .container {
   position: relative;
   overflow: visible;
@@ -37,6 +44,7 @@ section {
   color: var(--text);
 }
 
+/* --- Projektliste / generische Listen in section --- */
 section ul {
   margin: 10px 0 0;
   padding: 10px 14px 10px 24px;

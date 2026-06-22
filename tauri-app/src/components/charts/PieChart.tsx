@@ -7,7 +7,7 @@ import {
   Sector,
   Tooltip,
 } from "recharts";
-import { formatDurationSeconds } from "../../utils/dwellByCategory.ts";
+import { formatDurationSeconds } from "../../utils/formatDuration";
 import { colorForCategory } from "../../utils/chartColors";
 import { pieTooltipProps } from "./ChartTooltip";
 

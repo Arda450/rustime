@@ -1,3 +1,9 @@
+/**
+ * window.css – App-Fenster und Root-Container
+ * Komponente: keine (Tauri-Fenster + Vite-Root)
+ * Bezug: tauri.conf.json (minWidth/minHeight), index.html (#root)
+ */
+
 /* Mindestgrösse des App-Fensters (siehe auch minWidth/minHeight in tauri.conf.json) */
 :root {
   --window-min-width: 700px;

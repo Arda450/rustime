@@ -1,3 +1,9 @@
+/**
+ * projects.css – Tab „Projekte“
+ * Komponente: ProjectsPanel.tsx (Liste in section.container / layout.css)
+ */
+
+/* --- Einzelne Projektzeile in der Liste --- */
 .projectRow {
   display: flex;
   justify-content: space-between;
@@ -12,12 +18,14 @@
   gap: 8px;
 }
 
+/* --- Button „Aktiv setzen“ --- */
 .projectActionBtn {
   flex: 0 0 auto;
   max-width: 140px;
   white-space: nowrap;
 }
 
+/* --- Indikator: aktives Projekt --- */
 .greenDotActive {
   display: inline-block;
   width: 10px;

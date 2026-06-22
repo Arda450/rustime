@@ -10,9 +10,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::dto::activity::ActivityDto;
-use crate::error::ApiError;
 use rustime_core::models::WindowActivity;
-use rustime_db::get_activities_with_projects;
 use rustime_tracking::{
     current_timestamp, try_get_active_window_title, TrackingError, TrackingState,
 };
@@ -95,23 +93,6 @@ pub fn stop_tracking_internal(state: &TrackingState) {
 #[tauri::command]
 pub fn stop_tracking(state: State<TrackingState>) {
     stop_tracking_internal(&state);
-}
-
-/// Liefert alle Aktivitäten mit Projekt-Info (Legacy, ohne Paginierung).
-/// Bevorzugt für die UI: `get_activities_page` in `stats.rs`.
-#[tauri::command]
-pub fn get_activities(state: State<TrackingState>) -> Result<Vec<ActivityDto>, ApiError> {
-    let db_conn = state
-        .db
-        .lock()
-        .map_err(|_| ApiError::new("DB_LOCK_FAILED", "Datenbank-Lock fehlgeschlagen"))?;
-
-    let rows = get_activities_with_projects(&db_conn).map_err(ApiError::from)?;
-
-    Ok(rows
-        .into_iter()
-        .map(|r| ActivityDto::from_parts(r.title, r.timestamp, r.project_id, r.project_name))
-        .collect())
 }
 
 /// Gibt zurück, ob der Tracking-Loop aktuell läuft.

@@ -1,3 +1,14 @@
+/**
+ * charts.css – Diagramme und Auswertung
+ * Komponenten:
+ *   - OverviewPanel.tsx (chartViewSwitch, chartWithSharedLegend, chartPane)
+ *   - PieChart.tsx (.pieChartPlot)
+ *   - TimeSeriesChart.tsx (.timeSeriesChart*)
+ *   - ChartLegend.tsx
+ *   - ChartTooltip.tsx (Tooltip-Inhalt für Recharts)
+ */
+
+/* --- OverviewPanel: Pie + Zeitverlauf + gemeinsame Legende --- */
 .chartWithSharedLegend {
   display: flex;
   flex-direction: column;
@@ -9,21 +20,23 @@
 .chartPane {
   width: 100%;
   min-width: 0;
-  min-height: 400px;
+  min-height: clamp(240px, 40vh, 400px);
   position: relative;
   display: flex;
   justify-content: center;
   align-items: flex-start;
 }
 
+/* --- PieChart.tsx (Recharts) --- */
 .pieChartPlot {
   width: 100%;
   max-width: 500px;
   height: min(500px, 55vh);
-  min-height: 360px;
+  min-height: clamp(240px, 38vh, 360px);
   margin: 0 auto;
 }
 
+/* --- TimeSeriesChart.tsx --- */
 .timeSeriesChartWrap {
   width: 100%;
 }
@@ -37,9 +50,28 @@
 
 .timeSeriesChartPlot {
   width: 100%;
-  height: 500px;
+  height: min(500px, 55vh);
+  min-height: clamp(240px, 38vh, 360px);
 }
 
+/* Horizontaler Scroll (Scrollbar-Farben: scrollbars.css) */
+.timeSeriesChartPlotScroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.timeSeriesChartPlotInner {
+  height: 360px;
+  flex-shrink: 0;
+}
+
+/* --- OverviewPanel: Lade-Overlay beim Chart-Refresh --- */
 .chartPaneRefreshing::after {
   content: "";
   position: absolute;
@@ -50,6 +82,7 @@
   opacity: 0.35;
 }
 
+/* --- ChartLegend.tsx (unter Pie/Zeitverlauf) --- */
 .chartLegend {
   width: 100%;
   text-align: left;
@@ -113,6 +146,7 @@
   flex-shrink: 0;
 }
 
+/* --- ChartTooltip.tsx (Recharts Tooltip) --- */
 .chartTooltip {
   box-sizing: border-box;
 }
@@ -164,6 +198,7 @@
   white-space: nowrap;
 }
 
+/* --- OverviewPanel: Umschalter Zeitverteilung / Zeitverlauf --- */
 .chartViewSwitch {
   display: flex;
   justify-content: flex-start;

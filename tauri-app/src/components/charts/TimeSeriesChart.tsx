@@ -2,7 +2,6 @@ import {
   CartesianGrid,
   Line,
   LineChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
@@ -28,6 +27,10 @@ type ChartRow = {
   label: string;
   [category: string]: number | string;
 };
+
+/** Mindestbreite pro Bucket für horizontalen Scroll (Detailansicht). */
+const PX_PER_BUCKET = 32;
+const CHART_HEIGHT = 360;
 
 function formatAxisTime(ts: number, bucketSeconds: number): string {
   const d = new Date(ts * 1000);
@@ -132,19 +135,23 @@ export default function TimeSeriesChart({
   const chartData = toChartData(trimmed, categoryNames, bucketSeconds);
   const showDots = chartData.length <= 24;
   const bucketLabel = formatBucketLabel(bucketSeconds);
+  const chartWidth = Math.max(chartData.length * PX_PER_BUCKET, 480);
+  const denseAxis = chartData.length > 40;
 
   return (
     <div className="timeSeriesChartWrap">
       <p className="timeSeriesChartCaption">
         Eine Linie pro Kategorie: Minuten pro {bucketLabel}-Fenster (nicht
         summiert; bei Wechseln können mehrere Linien im selben Fenster sichtbar
-        sein).
+        sein). Horizontal scrollen für mehr Detail.
       </p>
-      <div className="timeSeriesChartPlot">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="timeSeriesChartPlot timeSeriesChartPlotScroll">
+        <div className="timeSeriesChartPlotInner" style={{ width: chartWidth }}>
           <LineChart
+            width={chartWidth}
+            height={CHART_HEIGHT}
             data={chartData}
-            margin={{ top: 8, right: 12, left: 4, bottom: 4 }}
+            margin={{ top: 8, right: 12, left: 4, bottom: denseAxis ? 20 : 4 }}
           >
             <Tooltip
               shared
@@ -164,8 +171,11 @@ export default function TimeSeriesChart({
             <XAxis
               dataKey="label"
               tick={{ fill: "var(--muted)", fontSize: 11 }}
-              minTickGap={8}
-              interval="preserveStartEnd"
+              minTickGap={4}
+              interval={denseAxis ? 0 : "preserveStartEnd"}
+              angle={denseAxis ? -35 : 0}
+              textAnchor={denseAxis ? "end" : "middle"}
+              height={denseAxis ? 48 : 30}
             />
             <YAxis
               tick={{ fill: "var(--muted)", fontSize: 11 }}
@@ -199,7 +209,7 @@ export default function TimeSeriesChart({
               />
             ))}
           </LineChart>
-        </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );

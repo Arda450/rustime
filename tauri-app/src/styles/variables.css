@@ -1,5 +1,12 @@
+/**
+ * variables.css – Globale Design-Tokens (keine Komponente)
+ * Nutzung: var(--…) in allen Stylesheets; Theme-Umschaltung via [data-theme="light"] auf <html>.
+ * Gesetzt in: App.tsx (localStorage „theme“)
+ */
+
 @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
 
+/* --- Dunkles Theme (Standard) --- */
 :root {
   --bg-0: #070707;
   --bg-1: #0b0b0b;
@@ -15,8 +22,13 @@
   --accent: #4a9;
   --danger: #e54;
   --warning: #f80;
+  /* Scrollbars (z. B. TimeSeriesChart) */
+  --scrollbar-track: #0a0a0a;
+  --scrollbar-thumb: #2e2e2e;
+  --scrollbar-thumb-hover: #444444;
 }
 
+/* --- Helles Theme --- */
 [data-theme="light"] {
   --bg-0: #e8e8e8;
   --bg-1: #f5f5f5;
@@ -28,4 +40,7 @@
   --text-inverse: #f0f0f0;
   --muted: #555555;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --scrollbar-track: #d8d8d8;
+  --scrollbar-thumb: #888888;
+  --scrollbar-thumb-hover: #666666;
 }

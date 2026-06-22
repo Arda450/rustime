@@ -1,3 +1,9 @@
+/**
+ * buttons.css – Globale Button- und Input-Styles
+ * Komponenten: alle Panels (OverviewPanel, SettingsPanel, ProjectsPanel, ProjectPickerButton, …)
+ * Klassen: button, button.danger, button[disabled]
+ */
+
 button,
 input {
   border: 1px solid var(--border);
@@ -32,6 +38,7 @@ button:not(:disabled):active {
   filter: brightness(0.95);
 }
 
+/* SettingsPanel: Löschen-Buttons */
 button.danger:not(:disabled):hover {
   background: rgba(238, 85, 68, 0.1);
 }

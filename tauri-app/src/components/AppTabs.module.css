@@ -1,3 +1,10 @@
+/**
+ * AppTabs.module.css – Hauptnavigation und Tab-Inhalte
+ * Komponente: App.tsx (@base-ui/react/tabs)
+ * CSS Modules: Klassen als styles.Page, styles.Tab, …
+ */
+
+/* --- App.tsx: <main> Wrapper --- */
 .Page {
   width: 100%;
   max-width: none;
@@ -6,6 +13,7 @@
   box-sizing: border-box;
 }
 
+/* --- Tab-Root --- */
 .Tabs {
   width: 100%;
   display: flex;
@@ -14,6 +22,7 @@
   align-items: stretch;
 }
 
+/* --- Tab-Leiste: Übersicht | Projekte | Einstellungen --- */
 .List {
   position: relative;
   display: flex;
@@ -60,8 +69,11 @@
   display: none;
 }
 
+/* --- Tab-Panel: rahmt OverviewPanel, ProjectsPanel, SettingsPanel --- */
 .Panel {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 18px 20px;
@@ -69,4 +81,5 @@
   color: var(--text);
   box-shadow: var(--shadow);
   box-sizing: border-box;
+  overflow-x: hidden;
 }

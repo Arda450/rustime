@@ -1,7 +1,7 @@
 import type { CategoryTimeSeriesPoint } from "../types";
 import type { PieSegment } from "../components/charts/PieChart";
 import { colorForCategory } from "./chartColors";
-import { formatDurationSeconds } from "./dwellByCategory";
+import { formatDurationSeconds } from "./formatDuration";
 
 export type ChartViewMode = "pie" | "timeseries";
 

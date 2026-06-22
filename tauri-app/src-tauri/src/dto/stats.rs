@@ -18,13 +18,6 @@ pub struct ActivitiesPageDto {
     pub total_count: i64,
 }
 
-/// Ein Punkt im Zeitverlauf (Bucket-Start + Dauer in Sekunden).
-#[derive(Serialize)]
-pub struct TimeSeriesPointDto {
-    pub ts: u64,
-    pub value: u64,
-}
-
 /// Eine Kategorie mit Dauer in Sekunden für ein Zeitfenster.
 #[derive(Serialize)]
 pub struct CategoryValueDto {
@@ -37,4 +30,18 @@ pub struct CategoryValueDto {
 pub struct CategoryTimeSeriesPointDto {
     pub ts: u64,
     pub categories: Vec<CategoryValueDto>,
+}
+
+/// Tagesbericht für ein Projekt an einem Kalendertag.
+#[derive(Serialize)]
+pub struct DailyReportDto {
+    pub date: String,
+    pub project_name: Option<String>,
+    pub total_active_seconds: u64,
+    pub sample_count: i64,
+    pub first_activity_ts: Option<u64>,
+    pub last_activity_ts: Option<u64>,
+    pub by_category: Vec<DwellSegmentDto>,
+    pub timeline: Vec<CategoryTimeSeriesPointDto>,
+    pub top_contexts: Vec<DwellSegmentDto>,
 }

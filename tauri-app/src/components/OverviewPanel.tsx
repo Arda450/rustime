@@ -18,6 +18,8 @@ import ChartLegend from "./charts/ChartLegend";
 
 import { ActivitiesTable } from "./ActivitiesTable";
 
+import { DailyReportView } from "./DailyReportView";
+
 import {
   buildChartLegendEntries,
   mergeCategoryOrder,
@@ -80,7 +82,7 @@ function parseApiError(err: unknown): { code?: string; message: string } {
   return { message: "Unbekannter Fehler" };
 }
 
-type ChartView = "pie" | "timeseries";
+type ChartView = "pie" | "timeseries" | "daily";
 
 function toUserMessage(code: string | undefined, fallback: string): string {
   switch (code) {
@@ -110,6 +112,9 @@ const CHART_OPTS = {
   topN: 10,
 } as const;
 
+/** Sichtbarer Zeitraum Zeitverlauf; Buckets skalieren via `chooseBucketSeconds`. */
+const CHART_VISIBLE_HOURS = 24;
+
 function OverviewPanel({
   isTracking,
   onStartTracking,
@@ -135,6 +140,10 @@ function OverviewPanel({
   const [isRefreshingCharts, setIsRefreshingCharts] = useState(false);
   const chartsLoadedRef = useRef(false);
   const [timeSeriesBucketSeconds, setTimeSeriesBucketSeconds] = useState(120);
+  const [tableDateSync, setTableDateSync] = useState<{
+    from: string;
+    to: string;
+  } | null>(null);
   const { pickProject, isPicking, error, clearError } = useProjectPicker({
     onProjectSelected,
   });
@@ -159,7 +168,7 @@ function OverviewPanel({
     }
 
     const now = Math.floor(Date.now() / 1000);
-    const fromTs = now - 3 * 60 * 60;
+    const fromTs = now - CHART_VISIBLE_HOURS * 60 * 60;
     const bucketSeconds = chooseBucketSeconds(now - fromTs);
     setTimeSeriesBucketSeconds(bucketSeconds);
 
@@ -206,16 +215,15 @@ function OverviewPanel({
     };
   }, [projectId, dwellRevision]);
 
-  const legendEntries = useMemo(
-    () =>
-      buildChartLegendEntries(
-        categoryOrder,
-        chartView,
-        dwellSegments,
-        timeSeriesByCategory,
-      ),
-    [categoryOrder, chartView, dwellSegments, timeSeriesByCategory],
-  );
+  const legendEntries = useMemo(() => {
+    if (chartView === "daily") return [];
+    return buildChartLegendEntries(
+      categoryOrder,
+      chartView,
+      dwellSegments,
+      timeSeriesByCategory,
+    );
+  }, [categoryOrder, chartView, dwellSegments, timeSeriesByCategory]);
 
   const legendHint =
     chartView === "pie"
@@ -355,7 +363,9 @@ function OverviewPanel({
           ) : (
             <ActivitiesTable
               projectId={tableProjectId}
+              projectName={activeProject?.name ?? null}
               refreshKey={tableRevision}
+              syncDateFilter={tableDateSync}
             />
           )}
 
@@ -421,12 +431,27 @@ function OverviewPanel({
             >
               Zeitverlauf
             </ChartViewButton>
+            <ChartViewButton
+              active={chartView === "daily"}
+              onClick={() => setChartView("daily")}
+            >
+              Tagesbericht
+            </ChartViewButton>
           </div>
 
           {!activeProject ? (
             <p style={{ color: "var(--muted)", fontStyle: "italic" }}>
               Projekt wählen, um ein Diagramm zu sehen.
             </p>
+          ) : chartView === "daily" ? (
+            <DailyReportView
+              projectId={activeProject.id}
+              projectName={activeProject.name}
+              dwellRevision={dwellRevision}
+              onShowInTable={(isoDate) =>
+                setTableDateSync({ from: isoDate, to: isoDate })
+              }
+            />
           ) : !showChartArea ? (
             <p style={{ color: "var(--muted)", fontStyle: "italic" }}>
               Lade Diagrammdaten…

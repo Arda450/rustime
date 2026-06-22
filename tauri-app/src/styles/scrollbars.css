@@ -1,0 +1,64 @@
+/**
+ * scrollbars.css – Einheitliche Scrollbar-Farben (horizontal + vertikal)
+ * Farben: variables.css (--scrollbar-track, --scrollbar-thumb)
+ * Betrifft: Zeitverlauf-Chart, Aktivitäten-Tabelle, JSON-Vorschau, Listen, Fenster-Scroll
+ */
+
+.timeSeriesChartPlotScroll,
+.activitiesTableWrap,
+.overviewExportPreview,
+.container ul,
+section ul,
+body {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: auto;
+}
+
+.timeSeriesChartPlotScroll::-webkit-scrollbar,
+.activitiesTableWrap::-webkit-scrollbar,
+.overviewExportPreview::-webkit-scrollbar,
+.container ul::-webkit-scrollbar,
+section ul::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.timeSeriesChartPlotScroll::-webkit-scrollbar-track,
+.activitiesTableWrap::-webkit-scrollbar-track,
+.overviewExportPreview::-webkit-scrollbar-track,
+.container ul::-webkit-scrollbar-track,
+section ul::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: var(--radius);
+}
+
+.timeSeriesChartPlotScroll::-webkit-scrollbar-thumb,
+.activitiesTableWrap::-webkit-scrollbar-thumb,
+.overviewExportPreview::-webkit-scrollbar-thumb,
+.container ul::-webkit-scrollbar-thumb,
+section ul::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: var(--radius);
+  border: 2px solid var(--scrollbar-track);
+}
+
+.timeSeriesChartPlotScroll::-webkit-scrollbar-thumb:hover,
+.activitiesTableWrap::-webkit-scrollbar-thumb:hover,
+.overviewExportPreview::-webkit-scrollbar-thumb:hover,
+.container ul::-webkit-scrollbar-thumb:hover,
+section ul::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+.timeSeriesChartPlotScroll::-webkit-scrollbar-corner,
+.activitiesTableWrap::-webkit-scrollbar-corner,
+.overviewExportPreview::-webkit-scrollbar-corner,
+.container ul::-webkit-scrollbar-corner,
+section ul::-webkit-scrollbar-corner,
+body::-webkit-scrollbar-corner {
+  background: var(--scrollbar-track);
+}

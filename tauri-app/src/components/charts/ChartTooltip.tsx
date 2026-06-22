@@ -1,4 +1,4 @@
-import { formatDurationSeconds } from "../../utils/dwellByCategory";
+import { formatDurationSeconds } from "../../utils/formatDuration";
 import { chartTooltipStyle } from "../../utils/chartColors";
 
 export type TimeSeriesTooltipBodyProps = {

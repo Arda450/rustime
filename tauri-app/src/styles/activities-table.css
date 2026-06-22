@@ -1,13 +1,185 @@
+/**
+ * activities-table.css – Aktivitäten-Tabelle
+ * Komponente: ActivitiesTable.tsx (eingebettet in OverviewPanel, linke Spalte)
+ * Scrollbar-Farben: scrollbars.css
+ */
+
+/* --- Filterzeile: Datum von/bis + Kontextsuche --- */
+.activitiesFilterSection {
+  margin-bottom: 12px;
+}
+
+.activitiesFilterIntro {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.activitiesFilterStatus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.activitiesFilterStatusItem {
+  white-space: nowrap;
+}
+
+.activitiesFilterStatusSort {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.activitiesFilterStatusLabel {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.activitiesFilterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.activitiesFilterField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.activitiesFilterLabel {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.activitiesFilterHint {
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
+.activitiesFilterFieldGrow {
+  flex: 1;
+  min-width: 140px;
+}
+
+.activitiesFilterField input {
+  margin-top: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.activitiesFilterDate {
+  color-scheme: dark;
+}
+
+[data-theme="light"] .activitiesFilterDate {
+  color-scheme: light;
+}
+
+/* Eigenes Kalender-Icon: Farbe folgt --muted / --text (Dark + Light) */
+.activitiesFilterDate::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-left: 4px;
+  opacity: 1;
+  filter: none;
+  background-color: var(--muted);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM5 8V6h14v2H5z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM5 8V6h14v2H5z'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.activitiesFilterDate::-webkit-calendar-picker-indicator:hover {
+  background-color: var(--text);
+}
+
+.activitiesFilterReset {
+  align-self: flex-end;
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+
+.activitiesEmptyMessage {
+  margin: 0;
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+/* --- Horizontaler Scroll bei schmaler Spalte --- */
+.activitiesTableWrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+/* --- TanStack Table: Kontext, Datum, Uhrzeit, Projekt --- */
 .activitiesTable {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   text-align: left;
 }
 
-.activitiesTable th,
+.activitiesTable th, /* table header */
 .activitiesTable td {
+  /* table data */
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis; /* wenn text zu lang, wird er abgeschnitten und ein ... angezeigt */
+  white-space: nowrap; /* text wird nicht umbrochen, sondern bleibt in einer zeile */
+  vertical-align: top; /* text wird oben ausgerichtet */
+}
+
+/* Feste Spaltenanteile → keine Layout-Shifts beim Sortieren/Laden */
+.activitiesTable th:nth-child(1),
+.activitiesTable td:nth-child(1) {
+  width: 50%;
+}
+
+.activitiesTable th:nth-child(2),
+.activitiesTable td:nth-child(2) {
+  width: 16%;
+}
+
+.activitiesTable th:nth-child(3),
+.activitiesTable td:nth-child(3) {
+  width: 16%;
+}
+
+.activitiesTable th:nth-child(4),
+.activitiesTable td:nth-child(4) {
+  width: 18%;
 }
 
 .activitiesTable th {
@@ -15,9 +187,33 @@
   font-weight: 700;
 }
 
+.activitiesTableSortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.activitiesTableSortable:hover {
+  color: var(--text);
+}
+
+.activitiesTableSortedAsc,
+.activitiesTableSortedDesc {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* --- Paginierung unter der Tabelle --- */
 .pageInfo {
   display: block;
   color: var(--muted);
   text-align: center;
   margin-top: 8px;
+}
+
+.activitiesPagination {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: center;
+  justify-content: center;
 }
