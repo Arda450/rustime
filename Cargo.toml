@@ -5,7 +5,7 @@ members = [
     "crates/rustime-core",
     "crates/rustime-tracking",
     "crates/rustime-db",
-
+    "tools/seed-database",
 ]
 
 [workspace.dependencies]

@@ -93,6 +93,14 @@
   gap: 10px;
 }
 
+.overviewExportHint {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted);
+  text-align: left;
+}
+
 /* Scrollbar-Farben: scrollbars.css */
 .overviewExportPreview {
   max-height: 220px;

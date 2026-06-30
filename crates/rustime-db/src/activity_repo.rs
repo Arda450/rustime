@@ -1,10 +1,22 @@
-// liest und schreibt aktivitäten in die datenbank
+//! Lese- und Schreibzugriff auf die Tabelle `activities` (Schema: `schema.rs`).
+//!
+//! Dieses Modul führt SQL aus; es öffnet die DB-Datei nicht selbst.
+//! Die `Connection` wird beim App-Start via `init_database()` erzeugt und
+//! als Parameter durchgereicht (z. B. über `TrackingState` in `stats.rs`).
 
 use crate::DbError;
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use rustime_core::models::WindowActivity;
 
-/// Aktivität inkl. optionaler Projekt-Zuordnung (über `LEFT JOIN`).
+/// Eine Aktivität inkl. optionaler Projekt-Zuordnung.
+///
+/// Entspricht einem JOIN aus `activities` + `projects`:
+/// - `title` ← `activities.window_title` (Roh-Fenstertitel von Windows)
+/// - `timestamp` ← `activities.timestamp` (Unix-Sekunden)
+/// - `project_id` / `project_name` ← optional über `LEFT JOIN`
+///
+/// Hinweis: `context_label` gibt es hier nicht – wird erst in `ActivityDto`
+/// aus `title` abgeleitet (`format_context_label_from_title`).
 #[derive(Debug, Clone)]
 pub struct ActivityWithProject {
     pub title: String,
@@ -13,15 +25,31 @@ pub struct ActivityWithProject {
     pub project_name: Option<String>,
 }
 
-// hier wird eine aktivität mit einem projekt verknüpft
-// activity ist ein windowactivity objekt, project_id ist die id des projekts
-// conn ist die datenbankverbindung
+/// Filterkriterien für die paginierte Aktivitätstabelle.
+///
+/// Alle Felder sind optional: `None` bedeutet „kein Filter auf dieses Kriterium“.
+/// Die UI sendet die Werte über `stats.rs::get_activities_page` (Tauri-Bridge).
+#[derive(Debug, Clone, Default)]
+pub struct ActivitiesFilter {
+    /// Nur Aktivitäten dieses Projekts; `None` = alle Projekte.
+    pub project_id: Option<i64>,
+    /// Untere Grenze (Unix-Sekunden, inklusiv). `None` = kein Startdatum.
+    pub from_ts: Option<u64>,
+    /// Obere Grenze (Unix-Sekunden, inklusiv). `None` = kein Enddatum.
+    pub to_ts: Option<u64>,
+    /// Textsuche im Roh-Fenstertitel (`window_title`). `None` oder leer = keine Suche.
+    pub context_query: Option<String>,
+}
+
+/// Schreibt eine erfasste Fensteraktivität in die Datenbank.
+///
+/// Wird vom Tracking-Polling (`tracking.rs`, alle ~2 s) aufgerufen, wenn ein
+/// aktives Projekt gesetzt ist. Es wird immer genau **eine** Zeile eingefügt.
 pub fn insert_activity_with_project(
     conn: &Connection,
     activity: &WindowActivity,
     project_id: i64,
 ) -> Result<(), DbError> {
-    // hier wird die aktivität in die datenbank geschrieben
     conn.execute(
         "INSERT INTO activities (window_title, timestamp, project_id) VALUES (?1, ?2, ?3)",
         params![activity.title, activity.timestamp as i64, project_id],
@@ -29,25 +57,12 @@ pub fn insert_activity_with_project(
     Ok(())
 }
 
-// lädt alle aktivitäten aus der datenbank und gibt sie als vector von windowactivities zurück
-// direkter zugriff auf sqlite
-pub fn get_all_activities(conn: &Connection) -> Result<Vec<WindowActivity>, DbError> {
-    let mut stmt =
-        conn.prepare("SELECT window_title, timestamp FROM activities ORDER BY timestamp DESC")?;
-
-    let activities = stmt
-        .query_map([], |row| {
-            Ok(WindowActivity {
-                title: row.get(0)?,
-                timestamp: row.get(1)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(activities)
-}
-
-/// Lädt alle Aktivitäten mit optionaler Projekt-Info (LEFT JOIN).
+/// Lädt **alle** Aktivitäten aller Projekte, neueste zuerst.
+///
+/// Keine Paginierung – bei vielen Einträgen kann das teuer werden.
+///
+/// # Aufrufer
+/// - `export.rs` (JSON/CSV-Export des vollständigen Datenbestands)
 pub fn get_activities_with_projects(
     conn: &Connection,
 ) -> Result<Vec<ActivityWithProject>, DbError> {
@@ -59,42 +74,27 @@ pub fn get_activities_with_projects(
     )?;
 
     let rows = stmt
-        .query_map([], |row| {
-            let ts: i64 = row.get(1)?;
-            Ok(ActivityWithProject {
-                title: row.get(0)?,
-                timestamp: ts as u64,
-                project_id: row.get(2)?,
-                project_name: row.get(3)?,
-            })
-        })?
+        .query_map([], map_activity_row)?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(rows)
 }
 
-/// Löscht alle Aktivitäten aus der Datenbank.
+/// Löscht sämtliche Zeilen aus `activities`.
 pub fn delete_all_activities(conn: &Connection) -> Result<usize, DbError> {
     let count = conn.execute("DELETE FROM activities", [])?;
     Ok(count)
 }
 
-/// Gibt die Anzahl der Aktivitäten zurück.
+/// Zählt alle Aktivitäten (über alle Projekte).
 pub fn count_activities(conn: &Connection) -> Result<i64, DbError> {
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM activities", [], |row| row.get(0))?;
     Ok(count)
 }
 
-pub fn count_activities_for_project(conn: &Connection, project_id: i64) -> Result<i64, DbError> {
-    let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM activities WHERE project_id = ?1",
-        [project_id],
-        |row| row.get(0),
-    )?;
-    Ok(count)
-}
-
-/// Aktivitäten eines Projekts, aufsteigend nach Zeit (für Verweildauer-Aggregation).
+/// Lädt **alle** Aktivitäten eines Projekts, **älteste zuerst** (`ASC`).
+///
+/// Wird für Pie- und Zeitverlauf-Charts verwendet – **nicht** für die Tabelle.
 pub fn get_activities_for_project_asc(
     conn: &Connection,
     project_id: i64,
@@ -108,94 +108,192 @@ pub fn get_activities_for_project_asc(
     )?;
 
     let rows = stmt
-        .query_map([project_id], |row| {
-            let ts: i64 = row.get(1)?;
-            Ok(ActivityWithProject {
-                title: row.get(0)?,
-                timestamp: ts as u64,
-                project_id: row.get(2)?,
-                project_name: row.get(3)?,
-            })
-        })?
+        .query_map([project_id], map_activity_row)?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(rows)
 }
 
+/// Lädt Aktivitäten eines Projekts in einem Zeitfenster (inklusiv), **älteste zuerst**.
+pub fn get_activities_for_project_in_range(
+    conn: &Connection,
+    project_id: i64,
+    from_ts: u64,
+    to_ts: u64,
+) -> Result<Vec<ActivityWithProject>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT a.window_title, a.timestamp, a.project_id, p.name
+         FROM activities a
+         LEFT JOIN projects p ON a.project_id = p.id
+         WHERE a.project_id = ?1
+           AND a.timestamp >= ?2
+           AND a.timestamp <= ?3
+         ORDER BY a.timestamp ASC",
+    )?;
+
+    let rows = stmt
+        .query_map(
+            (project_id, from_ts as i64, to_ts as i64),
+            map_activity_row,
+        )?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(rows)
+}
+
+/// Ergebnis einer paginierten Abfrage für die Aktivitätstabelle in der UI.
 #[derive(Debug, Clone)]
 pub struct ActivitiesPage {
+    /// Die Einträge **dieser Seite** (max. `page_size`, typisch 20).
     pub items: Vec<ActivityWithProject>,
+    /// Gesamtanzahl passender Einträge **nach Filter** (für Paginierung).
     pub total_count: i64,
 }
 
-/// Paginierte Aktivitäten, neueste zuerst. `project_id = None` → alle Projekte.
+/// Wandelt eine SQLite-Zeile in `ActivityWithProject` um (gemeinsam für alle SELECTs).
+fn map_activity_row(row: &rusqlite::Row<'_>) -> Result<ActivityWithProject, rusqlite::Error> {
+    let ts: i64 = row.get(1)?;
+    Ok(ActivityWithProject {
+        title: row.get(0)?,
+        timestamp: ts as u64,
+        project_id: row.get(2)?,
+        project_name: row.get(3)?,
+    })
+}
+
+/// Normalisiert den Kontext-Suchstring: trimmen; leer → `None`.
+fn normalized_context_query(query: Option<String>) -> Option<String> {
+    query.and_then(|q| {
+        let trimmed = q.trim().to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    })
+}
+
+/// SQL-`WHERE`-Klausel für Tabellenfilter.
+///
+/// `?1`–`?4` sind optional: SQLite behandelt `NULL` als „Bedingung ignorieren“
+/// (`? IS NULL OR …`). So brauchen COUNT und SELECT dieselbe Klausel.
+const FILTER_WHERE: &str = "
+WHERE (?1 IS NULL OR a.project_id = ?1)
+  AND (?2 IS NULL OR a.timestamp >= ?2)
+  AND (?3 IS NULL OR a.timestamp <= ?3)
+  AND (?4 IS NULL OR a.window_title LIKE '%' || ?4 || '%')";
+
+/// Übersetzt UI-Sortierfelder in eine sichere `ORDER BY`-Klausel (Whitelist, kein String-Interpolation in Spaltennamen).
+/// &str ist eine borrowed string slice. nimmt referenz auf einen string ohne besitz anzunehmen.
+fn order_clause(sort_by: &str, sort_order: &str) -> &'static str {
+    // ascending order, default ist absteigend
+    let asc = matches!(sort_order.to_ascii_lowercase().as_str(), "asc");
+    match sort_by {
+        "context" | "title" => { // context oder title sortieren
+            if asc { 
+                "ORDER BY a.window_title ASC"
+            } else {
+                "ORDER BY a.window_title DESC"
+            }
+        }
+        "project" => {
+            if asc {
+                "ORDER BY p.name ASC"
+            } else {
+                "ORDER BY p.name DESC"
+            }
+        }
+        "timestamp" | "date" | "time" => {
+            if asc {
+                "ORDER BY a.timestamp ASC"
+            } else {
+                "ORDER BY a.timestamp DESC"
+            }
+        }
+        _ => "ORDER BY a.timestamp DESC", // unbekannter wert, default ist absteigend
+    }
+}
+
+/// Lädt eine Seite Aktivitäten für die UI-Tabelle (serverseitige Paginierung + Filter).
+///
+/// Pro Aufruf laufen **zwei** SQL-Queries mit **identischen** Filterbedingungen:
+/// 1. `COUNT(*)` → `total_count` (für Paginierung)
+/// 2. `SELECT … LIMIT … OFFSET …` → `items` (nur diese Seite, max. `page_size`)
+///
+/// # Aufrufer
+/// `stats.rs::get_activities_page` → `ActivitiesTable.tsx` via `invoke`
 pub fn get_activities_page(
     conn: &Connection,
-    project_id: Option<i64>,
+    filter: &ActivitiesFilter,
     page: u32,
     page_size: u32,
+    sort_by: String,
+    sort_order: String,
 ) -> Result<ActivitiesPage, DbError> {
+    let order = order_clause(&sort_by, &sort_order);
     let page_size = page_size.clamp(1, 100) as i64;
     let offset = (page as i64).saturating_mul(page_size);
 
-    let (total_count, items) = match project_id {
-        Some(pid) => {
-            let total: i64 = conn.query_row(
-                "SELECT COUNT(*) FROM activities WHERE project_id = ?1",
-                [pid],
-                |row| row.get(0),
-            )?;
+    // Bind-Parameter: Option = NULL in SQLite → Filter aus
+    let pid = filter.project_id;
+    let from_ts: Option<i64> = filter.from_ts.map(|t| t as i64);
+    let to_ts: Option<i64> = filter.to_ts.map(|t| t as i64);
+    let context = normalized_context_query(filter.context_query.clone());
 
-            let mut stmt = conn.prepare(
-                "SELECT a.window_title, a.timestamp, a.project_id, p.name
-                 FROM activities a
-                 LEFT JOIN projects p ON a.project_id = p.id
-                 WHERE a.project_id = ?1
-                 ORDER BY a.timestamp DESC
-                 LIMIT ?2 OFFSET ?3",
-            )?;
+    // --- Query 1: zählen (keine Zeilen laden) ---
+    let count_sql = format!("SELECT COUNT(*) FROM activities a {FILTER_WHERE}");
+    let total: i64 = conn.query_row(
+        &count_sql,
+        (pid, from_ts, to_ts, context.as_deref()),
+        |row| row.get(0),
+    )?;
 
-            let rows = stmt
-                .query_map((pid, page_size, offset), |row| {
-                    let ts: i64 = row.get(1)?;
-                    Ok(ActivityWithProject {
-                        title: row.get(0)?,
-                        timestamp: ts as u64,
-                        project_id: row.get(2)?,
-                        project_name: row.get(3)?,
-                    })
-                })?
-                .collect::<Result<Vec<_>, _>>()?;
+    // --- Query 2: eine Seite laden ---
+    let select_sql = format!(
+        "SELECT a.window_title, a.timestamp, a.project_id, p.name
+         FROM activities a
+         LEFT JOIN projects p ON a.project_id = p.id
+         {FILTER_WHERE}
+         {order}
+         LIMIT ?5 OFFSET ?6"
+    );
 
-            (total, rows)
-        }
-        None => {
-            let total: i64 =
-                conn.query_row("SELECT COUNT(*) FROM activities", [], |row| row.get(0))?;
+    let mut stmt = conn.prepare(&select_sql)?;
+    let rows = stmt
+        .query_map(
+            (pid, from_ts, to_ts, context.as_deref(), page_size, offset),
+            map_activity_row,
+        )?
+        .collect::<Result<Vec<_>, _>>()?;
 
-            let mut stmt = conn.prepare(
-                "SELECT a.window_title, a.timestamp, a.project_id, p.name
-                 FROM activities a
-                 LEFT JOIN projects p ON a.project_id = p.id
-                 ORDER BY a.timestamp DESC
-                 LIMIT ?1 OFFSET ?2",
-            )?;
+    Ok(ActivitiesPage {
+        items: rows,
+        total_count: total,
+    })
+}
 
-            let rows = stmt
-                .query_map((page_size, offset), |row| {
-                    let ts: i64 = row.get(1)?;
-                    Ok(ActivityWithProject {
-                        title: row.get(0)?,
-                        timestamp: ts as u64,
-                        project_id: row.get(2)?,
-                        project_name: row.get(3)?,
-                    })
-                })?
-                .collect::<Result<Vec<_>, _>>()?;
+/// Lädt **alle** Aktivitäten passend zum Filter, **älteste zuerst** (für Export/Aggregation).
+pub fn get_activities_filtered(
+    conn: &Connection,
+    filter: &ActivitiesFilter,
+) -> Result<Vec<ActivityWithProject>, DbError> {
+    let pid = filter.project_id;
+    let from_ts: Option<i64> = filter.from_ts.map(|t| t as i64);
+    let to_ts: Option<i64> = filter.to_ts.map(|t| t as i64);
+    let context = normalized_context_query(filter.context_query.clone());
 
-            (total, rows)
-        }
-    };
+    let select_sql = format!(
+        "SELECT a.window_title, a.timestamp, a.project_id, p.name
+         FROM activities a
+         LEFT JOIN projects p ON a.project_id = p.id
+         {FILTER_WHERE}
+         ORDER BY a.timestamp ASC"
+    );
 
-    Ok(ActivitiesPage { items, total_count })
+    let mut stmt = conn.prepare(&select_sql)?;
+    let rows = stmt
+        .query_map((pid, from_ts, to_ts, context.as_deref()), map_activity_row)?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(rows)
 }

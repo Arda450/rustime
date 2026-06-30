@@ -1,4 +1,4 @@
-//! DTOs für den JSON-Export (Vorschau in der UI und Datei in Downloads).
+//! DTOs für den JSON-/CSV-Export (Rohdaten + aggregierte Verweildauer).
 
 use serde::Serialize;
 
@@ -7,8 +7,13 @@ use serde::Serialize;
 pub struct ExportMeta {
     pub format_version: u32,
     pub exported_at_unix: u64,
-    pub entry_count: usize,
+    pub sample_count: usize,
+    pub aggregated_count: usize,
     pub timezone: String,
+    pub filter_project_id: Option<i64>,
+    pub filter_from_ts: Option<u64>,
+    pub filter_to_ts: Option<u64>,
+    pub filter_context_query: Option<String>,
 }
 
 /// Eine exportierte Aktivität mit maschinen- und menschenlesbaren Zeitstempeln.
@@ -23,9 +28,40 @@ pub struct ExportActivity {
     pub project_name: Option<String>,
 }
 
-/// Wurzelobjekt der Export-JSON-Datei (`meta` + `activities`).
+/// Geschätzte aktive Zeit pro Projekt und Kategorie.
+#[derive(Serialize, Clone)]
+pub struct ExportAggregatedCategoryRow {
+    pub project_id: Option<i64>,
+    pub project_name: Option<String>,
+    pub category: String,
+    pub active_seconds: u64,
+}
+
+/// Summe der geschätzten aktiven Zeit pro Projekt.
+#[derive(Serialize, Clone)]
+pub struct ExportAggregatedProjectRow {
+    pub project_id: Option<i64>,
+    pub project_name: Option<String>,
+    pub active_seconds: u64,
+}
+
+#[derive(Serialize)]
+pub struct ExportAggregated {
+    pub by_project_category: Vec<ExportAggregatedCategoryRow>,
+    pub by_project: Vec<ExportAggregatedProjectRow>,
+}
+
+/// Wurzelobjekt der Export-JSON-Datei.
 #[derive(Serialize)]
 pub struct ExportPayload {
     pub meta: ExportMeta,
     pub activities: Vec<ExportActivity>,
+    pub aggregated: ExportAggregated,
+}
+
+/// Ergebnis des CSV-Exports (zwei Dateien: Samples + Aggregation).
+#[derive(Serialize)]
+pub struct ExportCsvResultDto {
+    pub samples_path: String,
+    pub aggregated_path: String,
 }

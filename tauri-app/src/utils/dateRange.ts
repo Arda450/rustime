@@ -49,3 +49,72 @@ export function formatTimeFromTs(ts: number): string {
     minute: "2-digit",
   });
 }
+
+/** Begrenzt ein ISO-Datum auf heute (lokal). */
+export function clampIsoDateToToday(isoDate: string): string {
+  const today = todayIsoDate();
+  return isoDate > today ? today : isoDate;
+}
+
+export function isIsoDateBeforeToday(isoDate: string): boolean {
+  return isoDate < todayIsoDate();
+}
+
+/** Montag als Wochenstart (lokale Kalenderwoche). */
+export function weekStartIso(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const weekday = date.getDay();
+  const diff = weekday === 0 ? -6 : 1 - weekday;
+  date.setDate(date.getDate() + diff);
+  const ny = date.getFullYear();
+  const nm = String(date.getMonth() + 1).padStart(2, "0");
+  const nd = String(date.getDate()).padStart(2, "0");
+  return `${ny}-${nm}-${nd}`;
+}
+
+/** Sonntag als Wochenende. */
+export function weekEndIso(isoDate: string): string {
+  return addDaysIso(weekStartIso(isoDate), 6);
+}
+
+export function addWeeks(isoDate: string, delta: number): string {
+  return addDaysIso(isoDate, delta * 7);
+}
+
+/** ISO-Kalenderwoche (1–53) aus einem Datum. */
+export function isoWeekNumber(isoDate: string): number {
+  const start = weekStartIso(isoDate);
+  const [y, m, d] = start.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil(
+    ((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7,
+  );
+}
+
+export function clampWeekEndToToday(weekEnd: string): string {
+  const today = todayIsoDate();
+  return weekEnd > today ? today : weekEnd;
+}
+
+export function formatWeekRange(weekStart: string, weekEnd: string): string {
+  return `${formatIsoDate(weekStart)} – ${formatIsoDate(weekEnd)}`;
+}
+
+export function formatWeekLabel(anchorIso: string): string {
+  const start = weekStartIso(anchorIso);
+  const end = weekEndIso(anchorIso);
+  const effectiveEnd = clampWeekEndToToday(end);
+  return `KW ${isoWeekNumber(start)} · ${formatWeekRange(start, effectiveEnd)}`;
+}
+
+export function isCurrentWeek(anchorIso: string): boolean {
+  return weekStartIso(anchorIso) === weekStartIso(todayIsoDate());
+}
+
+export function isWeekFullyInPast(anchorIso: string): boolean {
+  return weekEndIso(anchorIso) < todayIsoDate();
+}

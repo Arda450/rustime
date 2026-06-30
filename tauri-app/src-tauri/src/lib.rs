@@ -9,7 +9,7 @@ mod error;
 use commands::{
     clear_all_activities, clear_all_projects,export_activities_csv_to_downloads, export_activities_json_to_downloads,
     get_active_project, get_activities_page, get_app_stats,
-    get_daily_report, get_dwell_by_category, get_projects, get_time_series_by_category, is_tracking,
+    get_daily_report, get_dwell_by_category, get_projects, get_time_series_by_category, get_weekly_report, is_tracking,
     select_project_path, set_active_project, show_activities_json, start_tracking, stop_tracking,
 };
 
@@ -38,6 +38,7 @@ pub fn run() {
             stop_tracking,                       // stoppt die tracking funktion
             get_activities_page,                 // paginierte aktivitäten
             get_daily_report,                    // tagesbericht für ein projekt
+            get_weekly_report,                   // wochenbericht für ein projekt
             get_dwell_by_category,               // verweildauer-segmente fürs pie-chart
             get_time_series_by_category,         // zeitverlauf pro kategorie
             is_tracking,                         // prüft ob die tracking funktion läuft

@@ -7,3 +7,4 @@ edition = "2021"
 rustime-core = { path = "../rustime-core" }
 rusqlite.workspace = true
 dirs.workspace = true
+chrono = "0.4"

@@ -38,10 +38,31 @@ pub struct DailyReportDto {
     pub date: String,
     pub project_name: Option<String>,
     pub total_active_seconds: u64,
-    pub sample_count: i64,
+    pub context_count: i64,
     pub first_activity_ts: Option<u64>,
     pub last_activity_ts: Option<u64>,
     pub by_category: Vec<DwellSegmentDto>,
+    pub by_project_day: Vec<DwellSegmentDto>,
     pub timeline: Vec<CategoryTimeSeriesPointDto>,
     pub top_contexts: Vec<DwellSegmentDto>,
+    pub top_window_titles: Vec<DwellSegmentDto>,
+}
+
+/// Wochenbericht für ein Projekt (Kalenderwoche Mo–So).
+#[derive(Serialize)]
+pub struct WeeklyReportDto {
+    pub week_start: String,
+    pub week_end: String,
+    pub project_name: Option<String>,
+    pub total_active_seconds: u64,
+    pub context_count: i64,
+    pub active_days: i64,
+    pub first_activity_ts: Option<u64>,
+    pub last_activity_ts: Option<u64>,
+    pub by_category: Vec<DwellSegmentDto>,
+    pub by_day: Vec<DwellSegmentDto>,
+    pub by_project_week: Vec<DwellSegmentDto>,
+    pub timeline: Vec<CategoryTimeSeriesPointDto>,
+    pub top_contexts: Vec<DwellSegmentDto>,
+    pub top_window_titles: Vec<DwellSegmentDto>,
 }

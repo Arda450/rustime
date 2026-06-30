@@ -1,18 +1,33 @@
+use std::path::{Path, PathBuf};
+
 use crate::DbError;
 use rusqlite::Connection;
 
-pub fn init_database() -> Result<Connection, DbError> {
-    let app_dir = dirs::document_dir() // findet den dokumentenordner des users
+/// Pfad zur produktiven SQLite-Datei (`Dokumente/rustime-data/rustime.db`).
+pub fn default_database_path() -> Result<PathBuf, DbError> {
+    let app_dir = dirs::document_dir()
         .ok_or(DbError::AppDirNotFound)?
-        .join("rustime-data"); // erstellt unterordner für die datenbank
+        .join("rustime-data");
+    Ok(app_dir.join("rustime.db"))
+}
 
-    std::fs::create_dir_all(&app_dir)?; // erstellt den ordner wenn er nicht existiert
-    let db_path = app_dir.join("rustime.db"); // erstellt den pfad zur sqlite-datei mit der endung "rustime.db"
-    let conn = Connection::open(db_path)?; // öffnet/erstellt die sqlite-datei
+pub fn init_database() -> Result<Connection, DbError> {
+    open_database(&default_database_path()?)
+}
 
+/// Öffnet oder erstellt eine SQLite-Datei am angegebenen Pfad und wendet das Schema an.
+pub fn open_database(path: &Path) -> Result<Connection, DbError> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let conn = Connection::open(path)?;
+    apply_schema(&conn)?;
+    Ok(conn)
+}
+
+fn apply_schema(conn: &Connection) -> Result<(), DbError> {
     conn.execute("PRAGMA foreign_keys = ON", [])?;
 
-    // erstellt die tabelle für die projekte
     conn.execute(
         "CREATE TABLE IF NOT EXISTS projects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,7 +38,6 @@ pub fn init_database() -> Result<Connection, DbError> {
         [],
     )?;
 
-    // erstellt die tabelle für die aktivitäten
     conn.execute(
         "CREATE TABLE IF NOT EXISTS activities (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,8 +48,6 @@ pub fn init_database() -> Result<Connection, DbError> {
         [],
     )?;
 
-    // erstellt den index für die aktivitäten nach timestamp und project_id, damit die datenbank schneller suchen kann
-
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_activities_timestamp ON activities(timestamp)",
         [],
@@ -45,5 +57,5 @@ pub fn init_database() -> Result<Connection, DbError> {
         [],
     )?;
 
-    Ok(conn)
+    Ok(())
 }

@@ -79,7 +79,7 @@
   min-width: 140px;
 }
 
-.activitiesFilterField input {
+.activitiesFilterField input:not(.appDateInput) {
   margin-top: 2px;
   padding: 6px 8px;
   border: 1px solid var(--border);
@@ -87,37 +87,6 @@
   background: var(--surface);
   color: var(--text);
   font-size: 0.9rem;
-}
-
-.activitiesFilterDate {
-  color-scheme: dark;
-}
-
-[data-theme="light"] .activitiesFilterDate {
-  color-scheme: light;
-}
-
-/* Eigenes Kalender-Icon: Farbe folgt --muted / --text (Dark + Light) */
-.activitiesFilterDate::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-  width: 1.125rem;
-  height: 1.125rem;
-  margin-left: 4px;
-  opacity: 1;
-  filter: none;
-  background-color: var(--muted);
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM5 8V6h14v2H5z'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM5 8V6h14v2H5z'/%3E%3C/svg%3E");
-  -webkit-mask-size: contain;
-  mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-}
-
-.activitiesFilterDate::-webkit-calendar-picker-indicator:hover {
-  background-color: var(--text);
 }
 
 .activitiesFilterReset {
@@ -132,6 +101,17 @@
   color: var(--muted);
   font-style: italic;
   font-size: 0.9rem;
+}
+
+.activitiesLoadingMessage {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.activitiesTableRefreshing {
+  opacity: 0.72;
+  transition: opacity 120ms ease;
 }
 
 /* --- Horizontaler Scroll bei schmaler Spalte --- */
@@ -203,17 +183,118 @@
 }
 
 /* --- Paginierung unter der Tabelle --- */
+.activitiesPaginationBar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .pageInfo {
   display: block;
   color: var(--muted);
   text-align: center;
-  margin-top: 8px;
 }
 
 .activitiesPagination {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
+  flex-wrap: wrap;
+}
+
+.activitiesPageSizeField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.activitiesPageSizeSelectWrap {
+  position: relative;
+  display: inline-block;
+  margin-top: 2px;
+}
+
+.activitiesPageSizeLabel {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.75rem;
+}
+
+.activitiesPageSizeSelect {
+  min-height: 32px;
+  min-width: 4.5rem;
+  padding: 6px 1.75rem 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    filter 120ms ease;
+  color-scheme: dark;
+}
+
+.activitiesPageSizeSelect::-ms-expand {
+  display: none;
+}
+
+.activitiesPageSizeSelect:hover {
+  border-color: var(--muted);
+  filter: brightness(1.05);
+}
+
+.activitiesPageSizeSelect:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.activitiesPageSizeSelectWrap::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0.75rem;
+  height: 0.75rem;
+  pointer-events: none;
+  background-color: var(--muted);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.activitiesPageSizeSelectWrap:has(.activitiesPageSizeSelect:hover)::after,
+.activitiesPageSizeSelectWrap:has(
+    .activitiesPageSizeSelect:focus-visible
+  )::after {
+  background-color: var(--text);
+}
+
+[data-theme="light"] .activitiesPageSizeSelect {
+  color-scheme: light;
+}
+
+.activitiesPagination button {
+  width: auto;
+  min-height: 32px;
+  min-width: 5.5rem;
+  padding: 0 12px;
+  font-size: 0.85rem;
 }

@@ -27,14 +27,41 @@ export type CategoryTimeSeriesPoint = {
   categories: { name: string; value: number }[];
 };
 
-export type DailyReport = {
-  date: string;
+/** Gemeinsame Felder von Tages- und Wochenbericht. */
+export type ReportCore = {
   project_name: string | null;
   total_active_seconds: number;
-  sample_count: number;
+  context_count: number;
   first_activity_ts: number | null;
   last_activity_ts: number | null;
   by_category: DwellSegment[];
   timeline: CategoryTimeSeriesPoint[];
   top_contexts: DwellSegment[];
+  top_window_titles: DwellSegment[];
+};
+
+export type DailyReport = ReportCore & {
+  date: string;
+  by_project_day: DwellSegment[];
+};
+
+export type WeeklyReport = ReportCore & {
+  week_start: string;
+  week_end: string;
+  active_days: number;
+  by_day: DwellSegment[];
+  by_project_week: DwellSegment[];
+};
+
+/** Filterkontext für Export (entspricht Aktivitätstabelle). */
+export type TableExportFilter = {
+  projectId: number | null;
+  fromTs: number | null;
+  toTs: number | null;
+  contextQuery: string | null;
+};
+
+export type ExportCsvResult = {
+  samples_path: string;
+  aggregated_path: string;
 };

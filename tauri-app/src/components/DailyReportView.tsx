@@ -1,40 +1,55 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { CategoryTimeSeriesPoint, DailyReport } from "../types";
+import type { DailyReport } from "../types";
 import {
   addDaysIso,
+  clampIsoDateToToday,
   dateInputToFromTs,
   dateInputToToTs,
+  formatIsoDate,
   formatIsoDateLong,
   formatTimeFromTs,
+  isIsoDateBeforeToday,
   todayIsoDate,
 } from "../utils/dateRange";
 import { formatDurationSeconds } from "../utils/formatDuration";
+import { useReportLoad } from "../hooks/useReportLoad";
 import {
-  buildChartLegendEntries,
-  mergeCategoryOrder,
-} from "../utils/chartLegend";
+  DAILY_TIMELINE_BUCKET_SECONDS,
+  REPORT_DWELL_OPTS,
+  REPORT_ESTIMATION_HINT,
+} from "../reports/reportConfig";
+import { ReportBody } from "../reports/ReportBody";
+import { ReportBarList } from "../reports/ReportBarList";
 import { formatBucketLabel } from "../utils/timeSeriesBuckets";
-import ActivityPieChart from "./charts/PieChart";
-import type { PieSegment } from "./charts/PieChart";
-import TimeSeriesChart from "./charts/TimeSeriesChart";
-import ChartLegend from "./charts/ChartLegend";
 import { AppIcon } from "./Icon";
-
-const REPORT_OPTS = {
-  maxSegmentGapSeconds: 120,
-  tailSeconds: 2,
-} as const;
-
-const TIMELINE_BUCKET_SECONDS = 900;
 
 type Props = {
   projectId: number;
   projectName: string;
   dwellRevision: number;
-  onShowInTable: (isoDate: string) => void;
+  onShowInTable: (from: string, to: string) => void;
 };
+
+function buildNarrativeSummary(report: DailyReport, isoDate: string): string {
+  const top =
+    report.by_category.find((s) => s.name !== "Sonstige") ??
+    report.by_category[0];
+  const active = formatDurationSeconds(report.total_active_seconds);
+  const dateLabel = formatIsoDate(isoDate);
+
+  if (!top || report.total_active_seconds === 0) {
+    return `Am ${dateLabel} wurden keine aktive Zeit für dieses Projekt geschätzt.`;
+  }
+
+  const pct =
+    report.total_active_seconds > 0
+      ? Math.round((top.value / report.total_active_seconds) * 100)
+      : 0;
+
+  return `Am ${dateLabel} hast du ca. ${active} aktiv gearbeitet — Schwerpunkt: ${top.name} (${pct} %).`;
+}
 
 export function DailyReportView({
   projectId,
@@ -42,233 +57,182 @@ export function DailyReportView({
   dwellRevision,
   onShowInTable,
 }: Props) {
-  const [reportDate, setReportDate] = useState(todayIsoDate);
-  const [report, setReport] = useState<DailyReport | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const today = todayIsoDate();
+  const [reportDate, setReportDate] = useState(today);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
+  const queryKey = `${projectId}|${reportDate}|${dwellRevision}`;
 
+  const load = useCallback(async () => {
     const fromTs = dateInputToFromTs(reportDate);
     const toTs = dateInputToToTs(reportDate);
-
-    invoke<DailyReport>("get_daily_report", {
+    return invoke<DailyReport>("get_daily_report", {
       projectId,
       date: reportDate,
       fromTs,
       toTs,
-      ...REPORT_OPTS,
-    })
-      .then((data) => {
-        if (!cancelled) setReport(data);
-      })
-      .catch((e) => {
-        console.error("get_daily_report failed", e);
-        if (!cancelled) {
-          setReport(null);
-          setError("Tagesbericht konnte nicht geladen werden.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      ...REPORT_DWELL_OPTS,
+    });
+  }, [projectId, reportDate]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId, reportDate, dwellRevision]);
+  const {
+    data: report,
+    loading,
+    isRefreshing,
+    error,
+  } = useReportLoad({
+    queryKey,
+    load,
+    deps: [projectId, reportDate, dwellRevision],
+    loadErrorMessage: "Tagesbericht konnte nicht geladen werden.",
+  });
 
-  const pieSegments: PieSegment[] = useMemo(
-    () =>
-      (report?.by_category ?? []).map((s) => ({
-        name: s.name,
-        value: s.value,
-      })),
-    [report?.by_category],
+  const isToday = reportDate === today;
+  const canGoForward = isIsoDateBeforeToday(reportDate);
+  const isEmpty = report != null && report.first_activity_ts == null;
+
+  const narrativeSummary = useMemo(
+    () => (report ? buildNarrativeSummary(report, reportDate) : null),
+    [report, reportDate],
   );
 
-  const timeline: CategoryTimeSeriesPoint[] = report?.timeline ?? [];
-
-  const categoryOrder = useMemo(
-    () =>
-      mergeCategoryOrder(
-        pieSegments.map((s) => s.name),
-        pieSegments,
-        timeline,
-      ),
-    [pieSegments, timeline],
+  const exportArgs = useMemo(
+    () => ({
+      projectId,
+      fromTs: dateInputToFromTs(reportDate),
+      toTs: dateInputToToTs(reportDate),
+      contextQuery: null,
+    }),
+    [projectId, reportDate],
   );
 
-  const legendEntries = useMemo(
-    () =>
-      buildChartLegendEntries(
-        categoryOrder,
-        "timeseries",
-        pieSegments,
-        timeline,
-      ),
-    [categoryOrder, pieSegments, timeline],
-  );
-
-  const summaryLine = useMemo(() => {
-    if (!report || report.sample_count === 0) return null;
-    const parts: string[] = [];
-    if (report.first_activity_ts != null && report.last_activity_ts != null) {
-      parts.push(
-        `Erfasst von ${formatTimeFromTs(report.first_activity_ts)} bis ${formatTimeFromTs(report.last_activity_ts)}`,
-      );
-    }
-    parts.push(
-      `${report.sample_count} Sample${report.sample_count === 1 ? "" : "s"}`,
-    );
-    parts.push(`ca. ${formatDurationSeconds(report.total_active_seconds)} aktiv`);
-    return parts.join(" · ");
+  const kpis = useMemo(() => {
+    if (!report) return [];
+    return [
+      {
+        value: formatDurationSeconds(report.total_active_seconds),
+        label: "geschätzt aktiv",
+      },
+      {
+        value:
+          report.first_activity_ts != null && report.last_activity_ts != null
+            ? `${formatTimeFromTs(report.first_activity_ts)} – ${formatTimeFromTs(report.last_activity_ts)}`
+            : "—",
+        label: "Erfassungsfenster",
+      },
+      {
+        value: String(report.context_count),
+        label: "Kontexte",
+      },
+    ];
   }, [report]);
 
-  function shiftDay(delta: number) {
-    setReportDate((d) => addDaysIso(d, delta));
-  }
-
-  const isEmpty = report != null && report.sample_count === 0;
-
   return (
-    <div className="dailyReport">
-      <div className="dailyReportNav">
+    <div className="periodReport">
+      <div className="periodReportNav">
         <button
           type="button"
-          className="dailyReportNavBtn"
-          onClick={() => shiftDay(-1)}
+          className="periodReportNavBtn"
+          onClick={() =>
+            setReportDate((d) => clampIsoDateToToday(addDaysIso(d, -1)))
+          }
           aria-label="Vorheriger Tag"
         >
           <AppIcon icon={ChevronLeft} size={18} />
         </button>
-        <label className="dailyReportDateField">
-          <span className="dailyReportDateLabel">Bericht für</span>
+        <label className="periodReportDateField">
+          <span className="periodReportDateLabel">Bericht für</span>
           <input
             type="date"
-            className="dailyReportDateInput"
+            className="appDateInput"
             value={reportDate}
-            onChange={(e) => setReportDate(e.target.value)}
+            max={today}
+            onChange={(e) => setReportDate(clampIsoDateToToday(e.target.value))}
           />
         </label>
         <button
           type="button"
-          className="dailyReportNavBtn"
-          onClick={() => shiftDay(1)}
+          className="periodReportNavBtn"
+          onClick={() =>
+            setReportDate((d) => clampIsoDateToToday(addDaysIso(d, 1)))
+          }
+          disabled={!canGoForward}
           aria-label="Nächster Tag"
         >
           <AppIcon icon={ChevronRight} size={18} />
         </button>
+        <button
+          type="button"
+          className="periodReportTodayBtn"
+          onClick={() => setReportDate(today)}
+          disabled={isToday}
+        >
+          Heute
+        </button>
       </div>
 
-      <p className="dailyReportSubtitle">
+      <p className="periodReportSubtitle">
         {formatIsoDateLong(reportDate)} · {projectName}
       </p>
 
-      {loading && (
-        <p className="dailyReportMuted">Lade Tagesbericht…</p>
+      <p className="periodReportEstimationHint">{REPORT_ESTIMATION_HINT}</p>
+
+      {loading && !report && (
+        <p className="periodReportMuted">Lade Tagesbericht…</p>
       )}
 
-      {error && !loading && (
-        <p className="dailyReportError">{error}</p>
-      )}
+      {error && !loading && <p className="periodReportError">{error}</p>}
 
-      {!loading && !error && isEmpty && (
-        <p className="dailyReportMuted">
-          Für diesen Tag liegen keine Aktivitäten für das Projekt vor.
+      {!loading && !error && report && isEmpty && (
+        <p className="periodReportMuted">
+          Für diesen Tag liegen keine Aktivitäten für das Projekt «{projectName}
+          » vor.
         </p>
       )}
 
-      {!loading && !error && report && !isEmpty && (
-        <>
-          <div className="dailyReportKpis">
-            <div className="dailyReportKpi">
-              <span className="dailyReportKpiValue">
-                {formatDurationSeconds(report.total_active_seconds)}
-              </span>
-              <span className="dailyReportKpiLabel">geschätzt aktiv</span>
-            </div>
-            <div className="dailyReportKpi">
-              <span className="dailyReportKpiValue">
-                {report.first_activity_ts != null && report.last_activity_ts != null
-                  ? `${formatTimeFromTs(report.first_activity_ts)} – ${formatTimeFromTs(report.last_activity_ts)}`
-                  : "—"}
-              </span>
-              <span className="dailyReportKpiLabel">Erfassungsfenster</span>
-            </div>
-            <div className="dailyReportKpi">
-              <span className="dailyReportKpiValue">{report.sample_count}</span>
-              <span className="dailyReportKpiLabel">Samples</span>
-            </div>
-          </div>
-
-          {summaryLine && (
-            <p className="dailyReportSummary">{summaryLine}</p>
-          )}
-
-          <div className="dailyReportCharts">
-            <div className="dailyReportChartBlock">
-              <h4 className="dailyReportChartTitle">Kategorien</h4>
-              <p className="dailyReportChartHint">
-                Geschätzte Verweildauer an diesem Tag.
-              </p>
-              <div className="dailyReportChartPane">
-                <ActivityPieChart
-                  data={pieSegments}
-                  categoryOrder={categoryOrder}
-                  emptyHint="Keine Kategoriedaten für diesen Tag."
+      {report && !isEmpty && (
+        <ReportBody
+          report={report}
+          isRefreshing={isRefreshing}
+          narrativeSummary={narrativeSummary}
+          timelineBucketSeconds={DAILY_TIMELINE_BUCKET_SECONDS}
+          trimLeadingEmptyBuckets={false}
+          kpis={kpis}
+          labels={{
+            pieTitle: "Kategorien",
+            pieHint: "Geschätzte Verweildauer an diesem Tag.",
+            pieLegend: "Anteil an diesem Tag",
+            pieEmpty: "Keine Kategoriedaten für diesen Tag.",
+            timelineTitle: "Zeitverlauf (00:00–24:00)",
+            timelineHint: `Aktive Zeit pro ${formatBucketLabel(DAILY_TIMELINE_BUCKET_SECONDS)}-Fenster.`,
+            timelineLegend: "Summe an diesem Tag",
+            timelineEmpty: "Kein Zeitverlauf für diesen Tag.",
+            topContextsTitle: "Top-Kategorien",
+            topTitlesTitle: "Top-Fenstertitel",
+            showInTableTitle:
+              "Filtert die Aktivitätstabelle links auf den gewählten Tag und zeigt alle einzelnen Fenster-Einträge.",
+            showInTableLabel: "Details in Liste",
+            exportJson: "Tag als JSON",
+            exportCsv: "Tag als CSV",
+          }}
+          extraSections={
+            report.by_project_day.length > 0 ? (
+              <div className="periodReportProjects">
+                <h4 className="periodReportChartTitle">
+                  Zeit pro Projekt (gesamter Tag)
+                </h4>
+                <p className="periodReportChartHint">
+                  Alle Projekte an diesem Tag — unabhängig vom aktiven Projekt.
+                </p>
+                <ReportBarList
+                  items={report.by_project_day}
+                  highlightName={projectName}
                 />
               </div>
-            </div>
-            <div className="dailyReportChartBlock">
-              <h4 className="dailyReportChartTitle">Zeitverlauf</h4>
-              <p className="dailyReportChartHint">
-                Aktive Zeit pro {formatBucketLabel(TIMELINE_BUCKET_SECONDS)}-Fenster.
-              </p>
-              <div className="dailyReportChartPane">
-                <TimeSeriesChart
-                  data={timeline}
-                  categoryOrder={categoryOrder}
-                  bucketSeconds={TIMELINE_BUCKET_SECONDS}
-                  emptyHint="Kein Zeitverlauf für diesen Tag."
-                />
-              </div>
-            </div>
-          </div>
-
-          <ChartLegend
-            entries={legendEntries}
-            viewLabel="Summe an diesem Tag"
-          />
-
-          {report.top_contexts.length > 0 && (
-            <div className="dailyReportTopContexts">
-              <h4 className="dailyReportChartTitle">Top-Kontexte</h4>
-              <ul className="dailyReportTopList">
-                {report.top_contexts.map((item) => (
-                  <li key={item.name} className="dailyReportTopItem">
-                    <span className="dailyReportTopName">{item.name}</span>
-                    <span className="dailyReportTopValue">
-                      {formatDurationSeconds(item.value)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="dailyReportActions">
-            <button
-              type="button"
-              onClick={() => onShowInTable(reportDate)}
-            >
-              Details in Liste anzeigen
-            </button>
-          </div>
-        </>
+            ) : null
+          }
+          exportArgs={exportArgs}
+          onShowInTable={() => onShowInTable(reportDate, reportDate)}
+        />
       )}
     </div>
   );

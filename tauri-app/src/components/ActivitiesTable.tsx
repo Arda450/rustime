@@ -8,8 +8,8 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useMemo, useState } from "react";
-import type { ActivitiesPage, Activity } from "../types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ActivitiesPage, Activity, TableExportFilter } from "../types";
 import {
   dateInputToFromTs,
   dateInputToToTs,
@@ -28,9 +28,10 @@ type Props = {
   projectId: number | null;
   projectName?: string | null;
   refreshKey: number;
-  pageSize?: number;
   /** Setzt Von/Bis-Filter von aussen (z. B. aus Tagesbericht). */
   syncDateFilter?: { from: string; to: string } | null;
+  /** Meldet aktuelle Filter an den Export (OverviewPanel). */
+  onExportFilterChange?: (filter: TableExportFilter) => void;
 };
 
 const SORT_COLUMN_LABELS: Record<string, string> = {
@@ -39,6 +40,9 @@ const SORT_COLUMN_LABELS: Record<string, string> = {
   time: "Uhrzeit",
   project: "Projekt",
 };
+
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 
 function describeSortDirection(columnId: string, desc: boolean): string {
   if (columnId === "date" || columnId === "time") {
@@ -72,18 +76,21 @@ export function ActivitiesTable({
   projectId,
   projectName = null,
   refreshKey,
-  pageSize = 20,
   syncDateFilter = null,
+  onExportFilterChange,
 }: Props) {
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize,
+    pageSize: DEFAULT_PAGE_SIZE,
   });
   const [pageData, setPageData] = useState<ActivitiesPage>({
     items: [],
     total_count: 0,
   });
   const [loading, setLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const queryKeyRef = useRef<string | null>(null);
+  const hasDataRef = useRef(false);
   const [sorting, setSorting] = useState<SortingState>([
     { id: "date", desc: true },
   ]);
@@ -107,6 +114,15 @@ export function ActivitiesTable({
     }
   }, [syncDateFilter]);
 
+  useEffect(() => {
+    onExportFilterChange?.({
+      projectId,
+      fromTs: dateFrom ? dateInputToFromTs(dateFrom) : null,
+      toTs: dateTo ? dateInputToToTs(dateTo) : null,
+      contextQuery: debouncedContext.trim() || null,
+    });
+  }, [projectId, dateFrom, dateTo, debouncedContext, onExportFilterChange]);
+
   const hasActiveFilter =
     dateFrom !== "" || dateTo !== "" || debouncedContext.trim() !== "";
 
@@ -120,10 +136,40 @@ export function ActivitiesTable({
     setPagination((p) => ({ ...p, pageIndex: 0 }));
   };
 
+  const handlePaginationChange: OnChangeFn<PaginationState> = (updater) => {
+    setPagination((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (next.pageSize !== prev.pageSize) {
+        return { ...next, pageIndex: 0 };
+      }
+      return next;
+    });
+  };
+
   // Serverseitig laden: Filter + Sortierung + Paginierung gehen ans Backend
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+
+    const queryKey = [
+      projectId,
+      pagination.pageIndex,
+      pagination.pageSize,
+      dateFrom,
+      dateTo,
+      debouncedContext,
+      sorting[0]?.id ?? "date",
+      sorting[0]?.desc ? "desc" : "asc",
+    ].join("|");
+
+    const isBackgroundRefresh =
+      queryKeyRef.current === queryKey && hasDataRef.current;
+    queryKeyRef.current = queryKey;
+
+    if (isBackgroundRefresh) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
 
     const fromTs = dateFrom ? dateInputToFromTs(dateFrom) : null;
     const toTs = dateTo ? dateInputToToTs(dateTo) : null;
@@ -140,11 +186,17 @@ export function ActivitiesTable({
       sortOrder: sorting[0]?.desc ? "desc" : "asc",
     })
       .then((result) => {
-        if (!cancelled) setPageData(result);
+        if (!cancelled) {
+          hasDataRef.current = result.total_count > 0;
+          setPageData(result);
+        }
       })
       .catch((e) => console.error("get_activities_page failed", e))
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setIsRefreshing(false);
+        }
       });
 
     return () => {
@@ -229,7 +281,7 @@ export function ActivitiesTable({
     columns,
     pageCount,
     state: { pagination, sorting },
-    onPaginationChange: setPagination,
+    onPaginationChange: handlePaginationChange,
     onSortingChange: handleSortingChange,
     manualPagination: true,
     manualSorting: true,
@@ -268,7 +320,7 @@ export function ActivitiesTable({
           <span className="activitiesFilterHint">Einträge ab diesem Tag</span>
           <input
             type="date"
-            className="activitiesFilterDate"
+            className="appDateInput"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
           />
@@ -280,7 +332,7 @@ export function ActivitiesTable({
           </span>
           <input
             type="date"
-            className="activitiesFilterDate"
+            className="appDateInput"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
           />
@@ -325,10 +377,17 @@ export function ActivitiesTable({
     <div>
       {filterBar}
 
-      {loading && (
-        <p style={{ color: "var(--muted)", marginBottom: 8 }}>Lade Einträge…</p>
+      {loading && pageData.total_count === 0 && (
+        <p className="activitiesLoadingMessage">Lade Einträge…</p>
       )}
-      <div className="activitiesTableWrap">
+      <div
+        className={[
+          "activitiesTableWrap",
+          isRefreshing ? "activitiesTableRefreshing" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         <table className="activitiesTable">
           <thead>
             {table.getHeaderGroups().map((hg) => (
@@ -378,12 +437,33 @@ export function ActivitiesTable({
         </table>
       </div>
 
-      <div>
+      <div className="activitiesPaginationBar">
         <span className="pageInfo">
           Seite {pagination.pageIndex + 1} / {pageCount} ({pageData.total_count}{" "}
           Einträge{hasActiveFilter ? ", gefiltert" : ""})
         </span>
         <div className="activitiesPagination">
+          <label className="activitiesPageSizeField">
+            <span className="activitiesPageSizeLabel">Einträge pro Seite</span>
+            <span className="activitiesPageSizeSelectWrap">
+              <select
+                className="activitiesPageSizeSelect"
+                value={pagination.pageSize}
+                onChange={(e) =>
+                  handlePaginationChange({
+                    pageIndex: 0,
+                    pageSize: Number(e.target.value),
+                  })
+                }
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </label>
           <button
             type="button"
             onClick={() => table.previousPage()}

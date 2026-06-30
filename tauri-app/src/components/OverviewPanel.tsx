@@ -1,12 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import { CategoryTimeSeriesPoint, Project } from "../types";
+import { CategoryTimeSeriesPoint, ExportCsvResult, Project, TableExportFilter } from "../types";
 
 import { ProjectPickerButton } from "./ProjectPickerButton";
 
 import { useProjectPicker } from "../hooks/useProjectPicker";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type ReactNode } from "react";
 
 import ActivityPieChart from "./charts/PieChart";
 
@@ -19,6 +19,7 @@ import ChartLegend from "./charts/ChartLegend";
 import { ActivitiesTable } from "./ActivitiesTable";
 
 import { DailyReportView } from "./DailyReportView";
+import { WeeklyReportView } from "./WeeklyReportView";
 
 import {
   buildChartLegendEntries,
@@ -82,7 +83,7 @@ function parseApiError(err: unknown): { code?: string; message: string } {
   return { message: "Unbekannter Fehler" };
 }
 
-type ChartView = "pie" | "timeseries" | "daily";
+type ChartView = "pie" | "timeseries" | "daily" | "weekly";
 
 function toUserMessage(code: string | undefined, fallback: string): string {
   switch (code) {
@@ -144,6 +145,15 @@ function OverviewPanel({
     from: string;
     to: string;
   } | null>(null);
+  const [exportFilter, setExportFilter] = useState<TableExportFilter>({
+    projectId: null,
+    fromTs: null,
+    toTs: null,
+    contextQuery: null,
+  });
+  const handleExportFilterChange = useCallback((filter: TableExportFilter) => {
+    setExportFilter(filter);
+  }, []);
   const { pickProject, isPicking, error, clearError } = useProjectPicker({
     onProjectSelected,
   });
@@ -216,7 +226,7 @@ function OverviewPanel({
   }, [projectId, dwellRevision]);
 
   const legendEntries = useMemo(() => {
-    if (chartView === "daily") return [];
+    if (chartView === "daily" || chartView === "weekly") return [];
     return buildChartLegendEntries(
       categoryOrder,
       chartView,
@@ -248,13 +258,22 @@ function OverviewPanel({
 
   async function exportJsonToDownloads() {
     try {
-      const path = await invoke<string>("export_activities_json_to_downloads");
-      setExportMsg(`JSON-Export erfolgreich: ${path}`);
+      setIsExporting(true);
+      setExportMsg("");
+      const path = await invoke<string>("export_activities_json_to_downloads", {
+        projectId: exportFilter.projectId,
+        fromTs: exportFilter.fromTs,
+        toTs: exportFilter.toTs,
+        contextQuery: exportFilter.contextQuery,
+      });
+      setExportMsg(`JSON-Export erfolgreich (Rohdaten + Aggregation): ${path}`);
     } catch (e) {
       const parsed = parseApiError(e);
       setExportMsg(
         `JSON-Export fehlgeschlagen: ${toUserMessage(parsed.code, parsed.message)}`,
       );
+    } finally {
+      setIsExporting(false);
     }
   }
 
@@ -262,8 +281,15 @@ function OverviewPanel({
     try {
       setIsExporting(true);
       setExportMsg("");
-      const path = await invoke<string>("export_activities_csv_to_downloads");
-      setExportMsg(`CSV-Export erfolgreich: ${path}`);
+      const result = await invoke<ExportCsvResult>("export_activities_csv_to_downloads", {
+        projectId: exportFilter.projectId,
+        fromTs: exportFilter.fromTs,
+        toTs: exportFilter.toTs,
+        contextQuery: exportFilter.contextQuery,
+      });
+      setExportMsg(
+        `CSV-Export erfolgreich — Samples: ${result.samples_path} | Aggregation: ${result.aggregated_path}`,
+      );
     } catch (e) {
       const parsed = parseApiError(e);
       setExportMsg(
@@ -278,14 +304,18 @@ function OverviewPanel({
     try {
       setIsExporting(true);
       setExportMsg("");
-      const json = await invoke<string>("show_activities_json");
+      const json = await invoke<string>("show_activities_json", {
+        projectId: exportFilter.projectId,
+        fromTs: exportFilter.fromTs,
+        toTs: exportFilter.toTs,
+        contextQuery: exportFilter.contextQuery,
+      });
       const parsed = JSON.parse(json);
       const pretty = JSON.stringify(parsed, null, 2);
       setExportPreview(pretty);
-      const count =
-        parsed?.activities?.length ??
-        (Array.isArray(parsed) ? parsed.length : "?");
-      setExportMsg(`(${count} JSON-Einträge)`);
+      const sampleCount = parsed?.meta?.sample_count ?? parsed?.activities?.length ?? "?";
+      const aggCount = parsed?.meta?.aggregated_count ?? parsed?.aggregated?.by_project_category?.length ?? "?";
+      setExportMsg(`(${sampleCount} Samples, ${aggCount} Aggregationszeilen)`);
     } catch (e) {
       const parsed = parseApiError(e);
       setExportMsg(
@@ -355,21 +385,20 @@ function OverviewPanel({
         <div className="overviewColumn overviewColumnLeft">
           <h3>Erfasste Fenster</h3>
 
-          {activityCount === 0 ? (
-            <p style={{ color: "var(--muted)", fontStyle: "italic" }}>
-              Noch keine Aktivitäten erfasst. Starte das Tracking, um Fenster zu
-              erfassen.
-            </p>
-          ) : (
-            <ActivitiesTable
-              projectId={tableProjectId}
-              projectName={activeProject?.name ?? null}
-              refreshKey={tableRevision}
-              syncDateFilter={tableDateSync}
-            />
-          )}
+          <ActivitiesTable
+            projectId={tableProjectId}
+            projectName={activeProject?.name ?? null}
+            refreshKey={tableRevision}
+            syncDateFilter={tableDateSync}
+            onExportFilterChange={handleExportFilterChange}
+          />
 
           <div className="overviewExportActions">
+            <p className="overviewExportHint">
+              Export nutzt die aktuellen Tabellenfilter (Von/Bis/Kontext/Projekt).
+              JSON enthält Rohdaten und aggregierte Zeiten; CSV erzeugt zwei Dateien
+              (Samples + Aggregation).
+            </p>
             <button
               type="button"
               onClick={exportJsonToDownloads}
@@ -437,6 +466,12 @@ function OverviewPanel({
             >
               Tagesbericht
             </ChartViewButton>
+            <ChartViewButton
+              active={chartView === "weekly"}
+              onClick={() => setChartView("weekly")}
+            >
+              Wochenbericht
+            </ChartViewButton>
           </div>
 
           {!activeProject ? (
@@ -448,9 +483,14 @@ function OverviewPanel({
               projectId={activeProject.id}
               projectName={activeProject.name}
               dwellRevision={dwellRevision}
-              onShowInTable={(isoDate) =>
-                setTableDateSync({ from: isoDate, to: isoDate })
-              }
+              onShowInTable={(from, to) => setTableDateSync({ from, to })}
+            />
+          ) : chartView === "weekly" ? (
+            <WeeklyReportView
+              projectId={activeProject.id}
+              projectName={activeProject.name}
+              dwellRevision={dwellRevision}
+              onShowInTable={(from, to) => setTableDateSync({ from, to })}
             />
           ) : !showChartArea ? (
             <p style={{ color: "var(--muted)", fontStyle: "italic" }}>

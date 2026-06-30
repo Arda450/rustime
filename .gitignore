@@ -2,5 +2,6 @@
 /mpp/
 /Markdown Files/
 /tauri-app/src-tauri/target/
+/testdata/*.db
 .cursor/rules/
 .vscode/settings.json

@@ -1,0 +1,13 @@
+[package]
+name = "seed-database"
+version = "0.1.0"
+edition = "2021"
+description = "Füllt die Rustime-SQLite-Datenbank mit Demo-Daten für UI-Tests"
+
+[[bin]]
+name = "seed-database"
+path = "src/main.rs"
+
+[dependencies]
+rustime-db = { path = "../../crates/rustime-db" }
+chrono = "0.4"

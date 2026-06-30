@@ -9,10 +9,11 @@
 @import "./styles/base.css"; /* Globale Basis, App-Logo, App-Icon */
 @import "./styles/scrollbars.css"; /* Einheitliche Scrollbar-Farben */
 @import "./styles/buttons.css"; /* Alle <button> und <input> app-weit */
+@import "./styles/date-input.css"; /* Datumsfelder mit Kalender-Icon */
 @import "./styles/layout.css"; /* Gemeinsame Section-Layouts (.container) */
 @import "./styles/overview.css"; /* OverviewPanel.tsx */
 @import "./styles/settings.css"; /* SettingsPanel.tsx */
 @import "./styles/projects.css"; /* ProjectsPanel.tsx (Projektzeilen) */
 @import "./styles/activities-table.css"; /* ActivitiesTable.tsx */
 @import "./styles/charts.css"; /* PieChart, TimeSeriesChart, ChartLegend, ChartTooltip, OverviewPanel Charts */
-@import "./styles/daily-report.css"; /* DailyReportView */
+@import "./styles/report.css"; /* Tages- und Wochenberichte */

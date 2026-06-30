@@ -20,6 +20,8 @@ type Props = {
   categoryOrder?: readonly string[];
   bucketSeconds?: number;
   emptyHint?: string;
+  /** Wenn false: leere Buckets am Tagesanfang behalten (Tagesbericht 00–24 Uhr). */
+  trimLeadingEmptyBuckets?: boolean;
 };
 
 type ChartRow = {
@@ -112,8 +114,9 @@ export default function TimeSeriesChart({
   categoryOrder = [],
   bucketSeconds = 120,
   emptyHint = "Keine Zeitverlaufsdaten für den gewählten Zeitraum.",
+  trimLeadingEmptyBuckets: shouldTrimLeading = true,
 }: Props) {
-  const trimmed = trimLeadingEmptyBuckets(data);
+  const trimmed = shouldTrimLeading ? trimLeadingEmptyBuckets(data) : data;
   const categoryNames = resolveCategoryNames(trimmed, categoryOrder);
 
   if (trimmed.length === 0 || categoryNames.length === 0) {
