@@ -85,6 +85,7 @@
 /* --- Rechte Spalte: Auswertung / Charts (siehe auch charts.css) --- */
 .overviewColumnRight {
   padding-left: 4px;
+  overflow: visible;
 }
 
 .overviewExportActions {
@@ -103,7 +104,7 @@
 
 /* Scrollbar-Farben: scrollbars.css */
 .overviewExportPreview {
-  max-height: 220px;
+  max-height: 500px;
   overflow: auto;
   text-align: left;
   margin: 0;

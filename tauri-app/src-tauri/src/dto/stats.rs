@@ -42,10 +42,10 @@ pub struct DailyReportDto {
     pub first_activity_ts: Option<u64>,
     pub last_activity_ts: Option<u64>,
     pub by_category: Vec<DwellSegmentDto>,
+    /// Zeit pro Tätigkeitsklasse (Entwicklung, Kommunikation, etc.).
+    pub by_activity_type: Vec<DwellSegmentDto>,
     pub by_project_day: Vec<DwellSegmentDto>,
     pub timeline: Vec<CategoryTimeSeriesPointDto>,
-    pub top_contexts: Vec<DwellSegmentDto>,
-    pub top_window_titles: Vec<DwellSegmentDto>,
 }
 
 /// Wochenbericht für ein Projekt (Kalenderwoche Mo–So).
@@ -60,9 +60,9 @@ pub struct WeeklyReportDto {
     pub first_activity_ts: Option<u64>,
     pub last_activity_ts: Option<u64>,
     pub by_category: Vec<DwellSegmentDto>,
+    /// Zeit pro Tätigkeitsklasse (Entwicklung, Kommunikation, etc.).
+    pub by_activity_type: Vec<DwellSegmentDto>,
     pub by_day: Vec<DwellSegmentDto>,
     pub by_project_week: Vec<DwellSegmentDto>,
     pub timeline: Vec<CategoryTimeSeriesPointDto>,
-    pub top_contexts: Vec<DwellSegmentDto>,
-    pub top_window_titles: Vec<DwellSegmentDto>,
 }

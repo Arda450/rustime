@@ -30,7 +30,7 @@ export function colorForCategory(
   return colorForCategoryIndex(idx >= 0 ? idx : orderedNames.length);
 }
 
-/** Recharts-Tooltip: kein Scroll, alles sichtbar. */
+/** Recharts-Tooltip: kein Scroll, alles sichtbar; hoher z-index für Portal-Rendering. */
 export const chartTooltipStyle = {
   contentStyle: {
     background: "var(--surface-strong)",
@@ -38,12 +38,14 @@ export const chartTooltipStyle = {
     color: "var(--text)",
     borderRadius: "6px",
     padding: "10px 12px",
+    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.18)",
   },
   wrapperStyle: {
     outline: "none",
     overflow: "visible",
     maxHeight: "none",
-    zIndex: 1000,
+    zIndex: 10000,
+    pointerEvents: "none",
   },
   itemStyle: {
     padding: "2px 0",

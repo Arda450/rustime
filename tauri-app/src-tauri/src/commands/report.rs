@@ -10,8 +10,9 @@ use crate::dto::stats::{
     WeeklyReportDto,
 };
 use crate::error::ApiError;
+use rustime_core::{classify_activity_type, ActivityType};
 use rustime_db::{
-    dwell_by_category_in_range, dwell_by_title_in_range, dwell_time_series_by_category,
+    dwell_by_category_in_range, dwell_time_series_by_category,
     get_activities_filtered, get_activities_for_project_in_range, ActivitiesFilter,
     ActivityWithProject, DwellOptions, TimeSeriesOptions,
 };
@@ -52,7 +53,7 @@ pub struct PeriodBuildParams {
     pub dwell: DwellParams,
 }
 
-/// Gemeinsamer Kern beider Berichtstypen (KPIs, Kategorien, Zeitverlauf, Top-Listen).
+/// Gemeinsamer Kern beider Berichtstypen (KPIs, Kategorien, Zeitverlauf).
 pub struct PeriodReportCore {
     pub project_name: Option<String>,
     pub total_active_seconds: u64,
@@ -60,9 +61,8 @@ pub struct PeriodReportCore {
     pub first_activity_ts: Option<u64>,
     pub last_activity_ts: Option<u64>,
     pub by_category: Vec<DwellSegmentDto>,
+    pub by_activity_type: Vec<DwellSegmentDto>,
     pub timeline: Vec<CategoryTimeSeriesPointDto>,
-    pub top_contexts: Vec<DwellSegmentDto>,
-    pub top_window_titles: Vec<DwellSegmentDto>,
 }
 
 pub fn day_start_from_ts(ts: u64) -> u64 {
@@ -116,6 +116,41 @@ fn count_distinct_contexts(segments: &[DwellSegmentDto]) -> i64 {
         .count() as i64
 }
 
+/// Aggregiert die geschätzte aktive Zeit pro Tätigkeitsklasse.
+fn compute_by_activity_type(
+    rows: &[ActivityWithProject],
+    range_start: u64,
+    range_end: u64,
+    dwell: DwellParams,
+) -> Vec<DwellSegmentDto> {
+    let mut by_type: HashMap<ActivityType, Vec<ActivityWithProject>> = HashMap::new();
+
+    for row in rows {
+        let activity_type = classify_activity_type(&row.title);
+        by_type.entry(activity_type).or_default().push(row.clone());
+    }
+
+    let mut result: Vec<DwellSegmentDto> = ActivityType::all()
+        .iter()
+        .filter_map(|&at| {
+            let type_rows = by_type.get(&at)?;
+            let segments =
+                dwell_by_category_in_range(type_rows, dwell.dwell_opts(0), range_start, range_end);
+            let total: u64 = segments.iter().map(|s| s.value_seconds).sum();
+            if total == 0 {
+                return None;
+            }
+            Some(DwellSegmentDto {
+                name: at.label().to_string(),
+                value: total,
+            })
+        })
+        .collect();
+
+    result.sort_by(|a, b| b.value.cmp(&a.value));
+    result
+}
+
 pub fn build_period_report_core(
     rows: &[ActivityWithProject],
     params: &PeriodBuildParams,
@@ -130,18 +165,7 @@ pub fn build_period_report_core(
         range_start,
         range_end,
     ));
-    let top_contexts = map_dwell_segments(dwell_by_category_in_range(
-        rows,
-        dwell.dwell_opts(5),
-        range_start,
-        range_end,
-    ));
-    let top_window_titles = map_dwell_segments(dwell_by_title_in_range(
-        rows,
-        dwell.dwell_opts(5),
-        range_start,
-        range_end,
-    ));
+    let by_activity_type = compute_by_activity_type(rows, range_start, range_end, dwell);
     let all_segments = dwell_by_category_in_range(
         rows,
         dwell.dwell_opts(0),
@@ -170,9 +194,8 @@ pub fn build_period_report_core(
         first_activity_ts: rows.first().map(|r| r.timestamp),
         last_activity_ts: rows.last().map(|r| r.timestamp),
         by_category,
+        by_activity_type,
         timeline: map_time_series_points(timeline),
-        top_contexts,
-        top_window_titles,
     }
 }
 
@@ -324,10 +347,9 @@ pub fn get_daily_report(
         first_activity_ts: core.first_activity_ts,
         last_activity_ts: core.last_activity_ts,
         by_category: core.by_category,
+        by_activity_type: core.by_activity_type,
         by_project_day,
         timeline: core.timeline,
-        top_contexts: core.top_contexts,
-        top_window_titles: core.top_window_titles,
     })
 }
 
@@ -400,10 +422,9 @@ pub fn get_weekly_report(
         first_activity_ts: core.first_activity_ts,
         last_activity_ts: core.last_activity_ts,
         by_category: core.by_category,
+        by_activity_type: core.by_activity_type,
         by_day,
         by_project_week,
         timeline: core.timeline,
-        top_contexts: core.top_contexts,
-        top_window_titles: core.top_window_titles,
     })
 }

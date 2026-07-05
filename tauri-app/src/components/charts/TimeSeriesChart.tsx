@@ -6,14 +6,17 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useRef, type RefObject } from "react";
 import type { CategoryTimeSeriesPoint } from "../../types";
 import { colorForCategory } from "../../utils/chartColors";
-import { formatBucketLabel } from "../../utils/timeSeriesBuckets";
 import {
-  TimeSeriesTooltipBody,
+  formatBucketLabel,
+  formatTimeSeriesAxisLabel,
+} from "../../utils/timeSeriesBuckets";
+import {
   type TimeSeriesTooltipBodyProps,
-  timeSeriesTooltipWrapperStyle,
 } from "./ChartTooltip";
+import { TimeSeriesTooltipPortal } from "./TimeSeriesTooltipPortal";
 
 type Props = {
   data: CategoryTimeSeriesPoint[];
@@ -22,6 +25,8 @@ type Props = {
   emptyHint?: string;
   /** Wenn false: leere Buckets am Tagesanfang behalten (Tagesbericht 00–24 Uhr). */
   trimLeadingEmptyBuckets?: boolean;
+  /** Optional: Referenz auf den Plot-Container (z. B. für PDF-Export). */
+  plotCaptureRef?: RefObject<HTMLDivElement | null>;
 };
 
 type ChartRow = {
@@ -32,17 +37,7 @@ type ChartRow = {
 
 /** Mindestbreite pro Bucket für horizontalen Scroll (Detailansicht). */
 const PX_PER_BUCKET = 32;
-const CHART_HEIGHT = 360;
-
-function formatAxisTime(ts: number, bucketSeconds: number): string {
-  const d = new Date(ts * 1000);
-  const hh = d.getHours().toString().padStart(2, "0");
-  const mm = d.getMinutes().toString().padStart(2, "0");
-  if (bucketSeconds <= 120) {
-    return `${hh}:${mm}`;
-  }
-  return `${hh}:${mm}`;
-}
+const CHART_HEIGHT = 420;
 
 function secondsToMinutes(seconds: number): number {
   return Math.round((seconds / 60) * 100) / 100;
@@ -86,7 +81,7 @@ function toChartData(
     );
     const row: ChartRow = {
       ts: point.ts,
-      label: formatAxisTime(point.ts, bucketSeconds),
+      label: formatTimeSeriesAxisLabel(point.ts, bucketSeconds),
     };
     for (const name of categoryNames) {
       row[name] = secondsToMinutes(byName.get(name) ?? 0);
@@ -115,7 +110,16 @@ export default function TimeSeriesChart({
   bucketSeconds = 120,
   emptyHint = "Keine Zeitverlaufsdaten für den gewählten Zeitraum.",
   trimLeadingEmptyBuckets: shouldTrimLeading = true,
+  plotCaptureRef,
 }: Props) {
+  const plotInnerRef = useRef<HTMLDivElement>(null);
+
+  const assignPlotRef = (el: HTMLDivElement | null) => {
+    plotInnerRef.current = el;
+    if (plotCaptureRef) {
+      plotCaptureRef.current = el;
+    }
+  };
   const trimmed = shouldTrimLeading ? trimLeadingEmptyBuckets(data) : data;
   const categoryNames = resolveCategoryNames(trimmed, categoryOrder);
 
@@ -149,7 +153,11 @@ export default function TimeSeriesChart({
         sein). Horizontal scrollen für mehr Detail.
       </p>
       <div className="timeSeriesChartPlot timeSeriesChartPlotScroll">
-        <div className="timeSeriesChartPlotInner" style={{ width: chartWidth }}>
+        <div
+          ref={assignPlotRef}
+          className="timeSeriesChartPlotInner"
+          style={{ width: chartWidth, height: CHART_HEIGHT }}
+        >
           <LineChart
             width={chartWidth}
             height={CHART_HEIGHT}
@@ -158,16 +166,20 @@ export default function TimeSeriesChart({
           >
             <Tooltip
               shared
+              allowEscapeViewBox={{ x: true, y: true }}
+              reverseDirection={{ x: true, y: true }}
               content={(props) => (
-                <TimeSeriesTooltipBody
+                <TimeSeriesTooltipPortal
                   active={props.active}
                   payload={
                     props.payload as TimeSeriesTooltipBodyProps["payload"]
                   }
                   label={props.label}
+                  coordinate={props.coordinate}
+                  chartRootRef={plotInnerRef}
+                  bucketSeconds={bucketSeconds}
                 />
               )}
-              wrapperStyle={timeSeriesTooltipWrapperStyle}
               cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
             />
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />

@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import type { ExportCsvResult, ReportCore } from "../types";
-import { formatDurationSeconds } from "../utils/formatDuration";
 import {
   buildChartLegendEntries,
   mergeCategoryOrder,
@@ -10,6 +9,8 @@ import ActivityPieChart from "../components/charts/PieChart";
 import type { PieSegment } from "../components/charts/PieChart";
 import TimeSeriesChart from "../components/charts/TimeSeriesChart";
 import ChartLegend from "../components/charts/ChartLegend";
+import { REPORT_ESTIMATION_HINT } from "./reportConfig";
+import { buildReportPdf } from "./exportReportPdf";
 
 export type ReportKpi = {
   value: string;
@@ -21,16 +22,19 @@ export type ReportBodyLabels = {
   pieHint: string;
   pieLegend: string;
   pieEmpty: string;
+  activityTypePieTitle: string;
+  activityTypePieHint: string;
+  activityTypePieLegend: string;
+  activityTypePieEmpty: string;
   timelineTitle: string;
   timelineHint: string;
   timelineLegend: string;
   timelineEmpty: string;
-  topContextsTitle: string;
-  topTitlesTitle: string;
   showInTableTitle: string;
   showInTableLabel: string;
   exportJson: string;
   exportCsv: string;
+  exportPdf: string;
 };
 
 type Props = {
@@ -42,6 +46,7 @@ type Props = {
   kpis: ReportKpi[];
   labels: ReportBodyLabels;
   extraSections?: ReactNode;
+  reportSubtitle: string;
   exportArgs: {
     projectId: number;
     fromTs: number;
@@ -60,11 +65,18 @@ export function ReportBody({
   kpis,
   labels,
   extraSections,
+  reportSubtitle,
   exportArgs,
   onShowInTable,
 }: Props) {
   const [exportMsg, setExportMsg] = useState("");
-  const [isExporting, setIsExporting] = useState(false);
+  const [activeExport, setActiveExport] = useState<
+    "json" | "csv" | "pdf" | null
+  >(null);
+
+  const activityTypeChartRef = useRef<HTMLDivElement>(null);
+  const pieChartRef = useRef<HTMLDivElement>(null);
+  const timelinePlotRef = useRef<HTMLDivElement>(null);
 
   const pieSegments: PieSegment[] = useMemo(
     () =>
@@ -73,6 +85,26 @@ export function ReportBody({
         value: s.value,
       })),
     [report.by_category],
+  );
+
+  const activityTypePieSegments: PieSegment[] = useMemo(
+    () =>
+      report.by_activity_type.map((s) => ({
+        name: s.name,
+        value: s.value,
+      })),
+    [report.by_activity_type],
+  );
+
+  const activityTypeOrder = useMemo(
+    () => activityTypePieSegments.map((s) => s.name),
+    [activityTypePieSegments],
+  );
+
+  const activityTypeLegendEntries = useMemo(
+    () =>
+      buildChartLegendEntries(activityTypeOrder, "pie", activityTypePieSegments, []),
+    [activityTypeOrder, activityTypePieSegments],
   );
 
   const timeline = report.timeline;
@@ -103,9 +135,62 @@ export function ReportBody({
     [categoryOrder, pieSegments, timeline],
   );
 
+  async function exportPdf() {
+    try {
+      setActiveExport("pdf");
+      setExportMsg("");
+
+      const sections = [
+        ...(activityTypePieSegments.length > 0
+          ? [
+              {
+                title: labels.activityTypePieTitle,
+                hint: labels.activityTypePieHint,
+                captureEl: activityTypeChartRef.current,
+                legendEntries: activityTypeLegendEntries,
+                maxImageHeightMm: 80,
+              },
+            ]
+          : []),
+        {
+          title: labels.pieTitle,
+          hint: labels.pieHint,
+          captureEl: pieChartRef.current,
+          legendEntries: pieLegendEntries,
+          maxImageHeightMm: 80,
+        },
+        {
+          title: labels.timelineTitle,
+          hint: labels.timelineHint,
+          captureEl: timelinePlotRef.current,
+          legendEntries: timelineLegendEntries,
+          maxImageHeightMm: 105,
+        },
+      ];
+
+      const pdfBytes = await buildReportPdf({
+        subtitle: reportSubtitle,
+        narrative: narrativeSummary,
+        kpis,
+        estimationHint: REPORT_ESTIMATION_HINT,
+        sections,
+      });
+
+      const path = await invoke<string>("export_report_pdf_to_downloads", {
+        pdfBytes: Array.from(pdfBytes),
+      });
+      setExportMsg(`PDF gespeichert: ${path}`);
+    } catch (e) {
+      console.error("report export pdf failed", e);
+      setExportMsg("PDF-Export fehlgeschlagen.");
+    } finally {
+      setActiveExport(null);
+    }
+  }
+
   async function exportJson() {
     try {
-      setIsExporting(true);
+      setActiveExport("json");
       setExportMsg("");
       const path = await invoke<string>(
         "export_activities_json_to_downloads",
@@ -116,13 +201,13 @@ export function ReportBody({
       console.error("report export json failed", e);
       setExportMsg("JSON-Export fehlgeschlagen.");
     } finally {
-      setIsExporting(false);
+      setActiveExport(null);
     }
   }
 
   async function exportCsv() {
     try {
-      setIsExporting(true);
+      setActiveExport("csv");
       setExportMsg("");
       const result = await invoke<ExportCsvResult>(
         "export_activities_csv_to_downloads",
@@ -135,7 +220,7 @@ export function ReportBody({
       console.error("report export csv failed", e);
       setExportMsg("CSV-Export fehlgeschlagen.");
     } finally {
-      setIsExporting(false);
+      setActiveExport(null);
     }
   }
 
@@ -163,16 +248,38 @@ export function ReportBody({
 
       {extraSections}
 
+      {activityTypePieSegments.length > 0 && (
+        <div className="periodReportActivityTypeChart">
+          <h4 className="periodReportChartTitle">{labels.activityTypePieTitle}</h4>
+          <p className="periodReportChartHint">{labels.activityTypePieHint}</p>
+          <div className="periodReportChartPane periodReportChartPaneActivityType">
+            <div ref={activityTypeChartRef} className="periodReportPdfCapture">
+              <ActivityPieChart
+              data={activityTypePieSegments}
+              categoryOrder={activityTypeOrder}
+              emptyHint={labels.activityTypePieEmpty}
+            />
+            </div>
+          </div>
+          <ChartLegend
+            entries={activityTypeLegendEntries}
+            viewLabel={labels.activityTypePieLegend}
+          />
+        </div>
+      )}
+
       <div className="periodReportCharts">
         <div className="periodReportChartBlock">
           <h4 className="periodReportChartTitle">{labels.pieTitle}</h4>
           <p className="periodReportChartHint">{labels.pieHint}</p>
           <div className="periodReportChartPane">
-            <ActivityPieChart
+            <div ref={pieChartRef} className="periodReportPdfCapture">
+              <ActivityPieChart
               data={pieSegments}
               categoryOrder={categoryOrder}
               emptyHint={labels.pieEmpty}
             />
+            </div>
           </div>
           <ChartLegend entries={pieLegendEntries} viewLabel={labels.pieLegend} />
         </div>
@@ -185,6 +292,7 @@ export function ReportBody({
               categoryOrder={categoryOrder}
               bucketSeconds={timelineBucketSeconds}
               trimLeadingEmptyBuckets={trimLeadingEmptyBuckets}
+              plotCaptureRef={timelinePlotRef}
               emptyHint={labels.timelineEmpty}
             />
           </div>
@@ -195,40 +303,6 @@ export function ReportBody({
         </div>
       </div>
 
-      {report.top_contexts.length > 0 && (
-        <div className="periodReportTopContexts">
-          <h4 className="periodReportChartTitle">{labels.topContextsTitle}</h4>
-          <ul className="periodReportTopList">
-            {report.top_contexts.map((item) => (
-              <li key={item.name} className="periodReportTopItem">
-                <span className="periodReportTopName">{item.name}</span>
-                <span className="periodReportTopValue">
-                  {formatDurationSeconds(item.value)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {report.top_window_titles.length > 0 && (
-        <div className="periodReportTopContexts">
-          <h4 className="periodReportChartTitle">{labels.topTitlesTitle}</h4>
-          <ul className="periodReportTopList">
-            {report.top_window_titles.map((item) => (
-              <li key={item.name} className="periodReportTopItem">
-                <span className="periodReportTopName" title={item.name}>
-                  {item.name}
-                </span>
-                <span className="periodReportTopValue">
-                  {formatDurationSeconds(item.value)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       <div className="periodReportActions">
         <button
           type="button"
@@ -237,11 +311,18 @@ export function ReportBody({
         >
           {labels.showInTableLabel}
         </button>
-        <button type="button" onClick={exportJson} disabled={isExporting}>
-          {isExporting ? "Export…" : labels.exportJson}
+        <button
+          type="button"
+          onClick={exportJson}
+          disabled={activeExport !== null}
+        >
+          {activeExport === "json" ? "Export…" : labels.exportJson}
         </button>
-        <button type="button" onClick={exportCsv} disabled={isExporting}>
-          {isExporting ? "Export…" : labels.exportCsv}
+        <button type="button" onClick={exportCsv} disabled={activeExport !== null}>
+          {activeExport === "csv" ? "Export…" : labels.exportCsv}
+        </button>
+        <button type="button" onClick={exportPdf} disabled={activeExport !== null}>
+          {activeExport === "pdf" ? "Export…" : labels.exportPdf}
         </button>
       </div>
 

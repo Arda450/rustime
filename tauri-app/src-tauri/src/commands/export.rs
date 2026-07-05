@@ -10,12 +10,13 @@ use chrono::{Local, TimeZone, Utc};
 use tauri::State;
 
 use crate::dto::export::{
-    ExportActivity, ExportAggregated, ExportAggregatedCategoryRow, ExportAggregatedProjectRow,
-    ExportCsvResultDto, ExportMeta, ExportPayload,
+    ExportActivity, ExportAggregated, ExportAggregatedActivityTypeRow,
+    ExportAggregatedCategoryRow, ExportAggregatedProjectRow, ExportCsvResultDto, ExportMeta,
+    ExportPayload,
 };
 use crate::error::ApiError;
 
-use rustime_core::window_context::format_context_label_from_title;
+use rustime_core::{classify_activity_type, format_context_label_from_title, ActivityType};
 use rustime_db::{
     dwell_by_category, dwell_by_category_in_range, get_activities_filtered, ActivitiesFilter,
     ActivityWithProject, DwellOptions, DwellSegment,
@@ -51,6 +52,7 @@ impl ExportRequest {
 fn to_export_activity(a: ActivityWithProject) -> ExportActivity {
     let ts = a.timestamp as i64;
     let context_label = format_context_label_from_title(&a.title);
+    let activity_type = classify_activity_type(&a.title).label().to_string();
 
     let iso_utc = Utc
         .timestamp_opt(ts, 0)
@@ -67,6 +69,7 @@ fn to_export_activity(a: ActivityWithProject) -> ExportActivity {
     ExportActivity {
         title: a.title,
         context_label,
+        activity_type,
         timestamp: a.timestamp,
         timestamp_utc: iso_utc,
         timestamp_local: iso_local,
@@ -161,10 +164,45 @@ fn compute_aggregated(rows: &[ActivityWithProject], filter: &ActivitiesFilter) -
             .then_with(|| a.project_name.cmp(&b.project_name))
     });
 
+    let by_activity_type = compute_by_activity_type(rows, filter);
+
     ExportAggregated {
         by_project_category,
         by_project: by_project_summary,
+        by_activity_type,
     }
+}
+
+/// Aggregiert die geschätzte aktive Zeit pro Tätigkeitsklasse.
+fn compute_by_activity_type(
+    rows: &[ActivityWithProject],
+    filter: &ActivitiesFilter,
+) -> Vec<ExportAggregatedActivityTypeRow> {
+    let mut by_type: HashMap<ActivityType, Vec<ActivityWithProject>> = HashMap::new();
+
+    for row in rows {
+        let activity_type = classify_activity_type(&row.title);
+        by_type.entry(activity_type).or_default().push(row.clone());
+    }
+
+    let mut result: Vec<ExportAggregatedActivityTypeRow> = ActivityType::all()
+        .iter()
+        .filter_map(|&at| {
+            let type_rows = by_type.get(&at)?;
+            let segments = dwell_segments_for_rows(type_rows, filter.from_ts, filter.to_ts);
+            let total: u64 = segments.iter().map(|s| s.value_seconds).sum();
+            if total == 0 {
+                return None;
+            }
+            Some(ExportAggregatedActivityTypeRow {
+                activity_type: at.label().to_string(),
+                active_seconds: total,
+            })
+        })
+        .collect();
+
+    result.sort_by(|a, b| b.active_seconds.cmp(&a.active_seconds));
+    result
 }
 
 fn build_payload(rows: Vec<ActivityWithProject>, req: &ExportRequest) -> ExportPayload {
@@ -248,7 +286,8 @@ fn format_duration_hms(seconds: u64) -> String {
 fn build_samples_csv(activities: &[ExportActivity]) -> String {
     let mut lines = Vec::with_capacity(activities.len() + 1);
     lines.push(
-        "datum;uhrzeit;kontext;fenstertitel;projekt;projekt_id;timestamp_unix".to_string(),
+        "datum;uhrzeit;kontext;taetigkeitsklasse;fenstertitel;projekt;projekt_id;timestamp_unix"
+            .to_string(),
     );
 
     for a in activities {
@@ -259,10 +298,11 @@ fn build_samples_csv(activities: &[ExportActivity]) -> String {
             .unwrap_or_default();
 
         lines.push(format!(
-            "{};{};{};{};{};{};{}",
+            "{};{};{};{};{};{};{};{}",
             escape_csv_field(&format_date_local(a.timestamp)),
             escape_csv_field(&format_time_local(a.timestamp)),
             escape_csv_field(&a.context_label),
+            escape_csv_field(&a.activity_type),
             escape_csv_field(&a.title),
             escape_csv_field(project_name),
             escape_csv_field(&project_id),
@@ -309,6 +349,18 @@ fn build_aggregated_csv(aggregated: &ExportAggregated) -> String {
             "{};{};{};{}",
             escape_csv_field(project_name),
             escape_csv_field(&project_id),
+            row.active_seconds,
+            escape_csv_field(&format_duration_hms(row.active_seconds)),
+        ));
+    }
+
+    lines.push(String::new());
+    lines.push("taetigkeitsklasse;aktiv_sekunden;aktiv_lesbar".to_string());
+
+    for row in &aggregated.by_activity_type {
+        lines.push(format!(
+            "{};{};{}",
+            escape_csv_field(&row.activity_type),
             row.active_seconds,
             escape_csv_field(&format_duration_hms(row.active_seconds)),
         ));
@@ -398,4 +450,22 @@ pub fn export_activities_csv_to_downloads(
         samples_path: samples_path.to_string_lossy().to_string(),
         aggregated_path: aggregated_path.to_string_lossy().to_string(),
     })
+}
+
+#[tauri::command]
+pub fn export_report_pdf_to_downloads(pdf_bytes: Vec<u8>) -> Result<String, ApiError> {
+    if pdf_bytes.is_empty() {
+        return Err(ApiError::new(
+            "EXPORT_EMPTY_PDF",
+            "PDF-Export enthält keine Daten.",
+        ));
+    }
+
+    let file_name = format!("rustime-bericht-{}.pdf", current_timestamp());
+    let out_path = download_dir()?.join(file_name);
+
+    std::fs::write(&out_path, pdf_bytes)
+        .map_err(|e| ApiError::new("EXPORT_WRITE_FAILED", e.to_string()))?;
+
+    Ok(out_path.to_string_lossy().to_string())
 }

@@ -57,9 +57,7 @@ function buildWeeklyNarrative(
     (best, day) => (day.value > best.value ? day : best),
     report.by_day[0],
   );
-  const busiestLabel = busiest
-    ? formatIsoDateLong(busiest.name)
-    : null;
+  const busiestLabel = busiest ? formatIsoDateLong(busiest.name) : null;
 
   let text = `In der Woche ${rangeLabel} hast du ca. ${active} aktiv gearbeitet`;
   if (top) {
@@ -102,7 +100,12 @@ export function WeeklyReportView({
     });
   }, [projectId, weekStart, weekEnd]);
 
-  const { data: report, loading, isRefreshing, error } = useReportLoad({
+  const {
+    data: report,
+    loading,
+    isRefreshing,
+    error,
+  } = useReportLoad({
     queryKey,
     load,
     deps: [projectId, weekStart, weekEnd, dwellRevision],
@@ -153,8 +156,7 @@ export function WeeklyReportView({
   }, [report]);
 
   const byDaySorted = useMemo(
-    () =>
-      [...(report?.by_day ?? [])].sort((a, b) => b.value - a.value),
+    () => [...(report?.by_day ?? [])].sort((a, b) => b.value - a.value),
     [report?.by_day],
   );
 
@@ -176,9 +178,7 @@ export function WeeklyReportView({
             className="appDateInput"
             value={weekAnchor}
             max={today}
-            onChange={(e) =>
-              setWeekAnchor(clampIsoDateToToday(e.target.value))
-            }
+            onChange={(e) => setWeekAnchor(clampIsoDateToToday(e.target.value))}
           />
         </label>
         <button
@@ -214,8 +214,8 @@ export function WeeklyReportView({
 
       {!loading && !error && report && isEmpty && (
         <p className="periodReportMuted">
-          Für diese Woche liegen keine Aktivitäten für das Projekt «{projectName}
-          » vor.
+          Für diese Woche liegen keine Aktivitäten für das Projekt «
+          {projectName}» vor.
         </p>
       )}
 
@@ -227,22 +227,27 @@ export function WeeklyReportView({
           timelineBucketSeconds={WEEKLY_TIMELINE_BUCKET_SECONDS}
           trimLeadingEmptyBuckets={true}
           kpis={kpis}
+          reportSubtitle={`${formatWeekLabel(weekAnchor)} · ${projectName}`}
           labels={{
-            pieTitle: "Kategorien",
-            pieHint: "Geschätzte Verweildauer in dieser Woche.",
+            pieTitle: "Kontexte",
+            pieHint: "Geschätzte Verweildauer pro Kontext in dieser Woche.",
             pieLegend: "Anteil in dieser Woche",
             pieEmpty: "Keine Kategoriedaten für diese Woche.",
+            activityTypePieTitle: "Tätigkeitsklassen",
+            activityTypePieHint:
+              "Aufteilung nach Tätigkeit (Entwicklung, Kommunikation, Recherche, Organisation, Sonstiges).",
+            activityTypePieLegend: "Anteil in dieser Woche",
+            activityTypePieEmpty: "Keine Tätigkeitsdaten für diese Woche.",
             timelineTitle: "Aktivität pro Tag",
             timelineHint: "Geschätzte aktive Zeit je Kalendertag (Mo–So).",
             timelineLegend: "Summe pro Tag",
             timelineEmpty: "Kein Tagesverlauf für diese Woche.",
-            topContextsTitle: "Top-Kategorien",
-            topTitlesTitle: "Top-Fenstertitel",
             showInTableTitle:
               "Filtert die Aktivitätstabelle links auf den gewählten Wochenzeitraum.",
             showInTableLabel: "Details in Liste",
-            exportJson: "Woche als JSON",
-            exportCsv: "Woche als CSV",
+            exportJson: "Woche als JSON exportieren",
+            exportCsv: "Woche als CSV exportieren",
+            exportPdf: "Woche als PDF exportieren",
           }}
           extraSections={
             <>

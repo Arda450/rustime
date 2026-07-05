@@ -7,7 +7,8 @@ mod error;
 
 // externe funktionen importieren
 use commands::{
-    clear_all_activities, clear_all_projects,export_activities_csv_to_downloads, export_activities_json_to_downloads,
+    clear_all_activities, clear_all_projects, export_activities_csv_to_downloads,
+    export_activities_json_to_downloads, export_report_pdf_to_downloads,
     get_active_project, get_activities_page, get_app_stats,
     get_daily_report, get_dwell_by_category, get_projects, get_time_series_by_category, get_weekly_report, is_tracking,
     select_project_path, set_active_project, show_activities_json, start_tracking, stop_tracking,
@@ -45,6 +46,7 @@ pub fn run() {
             show_activities_json,                // zeigt die aktivitäten in einer ui an
             export_activities_json_to_downloads, // exportiert die aktivitäten in eine json datei
             export_activities_csv_to_downloads, // exportiert die aktivitäten in eine csv datei
+            export_report_pdf_to_downloads,     // speichert einen bericht als pdf
             get_app_stats,                       // gibt statistiken über die app zurück
             clear_all_activities,                // löscht alle aktivitäten
             clear_all_projects,                  // löscht alle projekte (und aktivitäten)

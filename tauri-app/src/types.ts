@@ -35,9 +35,9 @@ export type ReportCore = {
   first_activity_ts: number | null;
   last_activity_ts: number | null;
   by_category: DwellSegment[];
+  /** Zeit pro Tätigkeitsklasse (Entwicklung, Kommunikation, etc.). */
+  by_activity_type: DwellSegment[];
   timeline: CategoryTimeSeriesPoint[];
-  top_contexts: DwellSegment[];
-  top_window_titles: DwellSegment[];
 };
 
 export type DailyReport = ReportCore & {

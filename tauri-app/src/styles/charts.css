@@ -19,12 +19,16 @@
 
 .chartPane {
   width: 100%;
+  /* padding: 8px 8px 0 8px; */
   min-width: 0;
   min-height: clamp(240px, 40vh, 400px);
   position: relative;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
+  overflow: visible;
+  z-index: 0;
+  outline: 1px solid pink;
 }
 
 /* --- PieChart.tsx (Recharts) --- */
@@ -39,36 +43,49 @@
 /* --- TimeSeriesChart.tsx --- */
 .timeSeriesChartWrap {
   width: 100%;
+  overflow: visible;
+  position: relative;
 }
 
 .timeSeriesChartCaption {
-  margin: 0 0 10px;
+  margin: 10px 0;
   color: var(--muted);
   font-size: 0.82rem;
   text-align: left;
 }
 
 .timeSeriesChartPlot {
+  outline: 1px solid red;
   width: 100%;
-  height: min(500px, 55vh);
-  min-height: clamp(240px, 38vh, 360px);
+  height: auto;
+  min-height: 0;
 }
 
 /* Horizontaler Scroll (Scrollbar-Farben: scrollbars.css) */
 .timeSeriesChartPlotScroll {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-strong);
+  position: relative;
+  z-index: 0;
+  height: auto;
+  min-height: 0;
 }
 
 .timeSeriesChartPlotInner {
-  height: 360px;
   flex-shrink: 0;
+}
+
+.chartTooltipPortal {
+  pointer-events: none;
 }
 
 /* --- OverviewPanel: Lade-Overlay beim Chart-Refresh --- */
@@ -149,6 +166,7 @@
 /* --- ChartTooltip.tsx (Recharts Tooltip) --- */
 .chartTooltip {
   box-sizing: border-box;
+  max-width: min(380px, 92vw);
 }
 
 .chartTooltipTitle {
@@ -171,7 +189,7 @@
 
 .chartTooltipRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   font-size: 0.85rem;
   line-height: 1.3;
@@ -182,14 +200,15 @@
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+  margin-top: 0.35em;
 }
 
 .chartTooltipName {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .chartTooltipValue {

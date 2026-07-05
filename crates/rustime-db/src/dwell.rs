@@ -1,8 +1,10 @@
 use std::collections::{BTreeMap, HashMap};
 
-use rustime_core::window_context::format_context_label_from_title;
+use rustime_core::window_context::format_app_label_from_title;
 
 use crate::activity_repo::ActivityWithProject;
+
+pub const SECONDS_PER_DAY: u64 = 86_400;
 
 #[derive(Debug, Clone)]
 pub struct DwellSegment {
@@ -222,10 +224,15 @@ pub fn dwell_time_series_by_category(
     }
 
     let from_ts = effective_from_ts(options, rows);
-    let bucket_starts: Vec<u64> =
-        prefill_buckets(from_ts, options.to_ts, options.bucket_seconds)
-            .into_keys()
-            .collect();
+    let calendar_buckets = uses_calendar_day_buckets(options);
+    let bucket_starts: Vec<u64> = prefill_buckets(
+        from_ts,
+        options.to_ts,
+        options.bucket_seconds,
+        calendar_buckets,
+    )
+    .into_keys()
+    .collect();
 
     let mut buckets: BTreeMap<u64, HashMap<String, u64>> = bucket_starts
         .into_iter()
@@ -281,7 +288,7 @@ fn build_segments(
     let mut out = Vec::with_capacity(rows.len());
 
     if rows.len() == 1 {
-        let cat = format_context_label_from_title(&rows[0].title);
+        let cat = format_app_label_from_title(&rows[0].title);
         out.push(Segment {
             start_ts: rows[0].timestamp,
             end_ts: rows[0].timestamp.saturating_add(tail_seconds),
@@ -299,7 +306,7 @@ fn build_segments(
         out.push(Segment {
             start_ts: start,
             end_ts: end,
-            category: format_context_label_from_title(&rows[i].title),
+            category: format_app_label_from_title(&rows[i].title),
         });
     }
 
@@ -307,19 +314,41 @@ fn build_segments(
     out.push(Segment {
         start_ts: last.timestamp,
         end_ts: last.timestamp.saturating_add(tail_seconds),
-        category: format_context_label_from_title(&last.title),
+        category: format_app_label_from_title(&last.title),
     });
 
     out
 }
 
-fn prefill_buckets(from_ts: u64, to_ts: u64, bucket_seconds: u64) -> BTreeMap<u64, u64> {
+fn uses_calendar_day_buckets(options: TimeSeriesOptions) -> bool {
+    options.align_to_range_start && options.bucket_seconds >= SECONDS_PER_DAY
+}
+
+/// Bucket-Start bei Kalender-Tagen: ab `range_start` in festen Tages-Schritten (lokale Mitternacht).
+fn calendar_bucket_start(ts: u64, range_start: u64, bucket_seconds: u64) -> u64 {
+    if ts < range_start {
+        return range_start;
+    }
+    let index = (ts - range_start) / bucket_seconds;
+    range_start.saturating_add(index.saturating_mul(bucket_seconds))
+}
+
+fn prefill_buckets(
+    from_ts: u64,
+    to_ts: u64,
+    bucket_seconds: u64,
+    calendar_buckets: bool,
+) -> BTreeMap<u64, u64> {
     let mut out = BTreeMap::new();
     if to_ts <= from_ts || bucket_seconds == 0 {
         return out;
     }
 
-    let first = (from_ts / bucket_seconds) * bucket_seconds;
+    let first = if calendar_buckets {
+        from_ts
+    } else {
+        (from_ts / bucket_seconds) * bucket_seconds
+    };
     let mut cur = first;
     while cur < to_ts {
         out.insert(cur, 0);
@@ -339,9 +368,7 @@ fn add_segment_to_category_buckets(
         &seg.category,
         seg.start_ts,
         seg.end_ts,
-        options.from_ts,
-        options.to_ts,
-        options.bucket_seconds,
+        options,
     );
 }
 
@@ -350,34 +377,50 @@ fn add_clipped_range_to_category_buckets(
     category: &str,
     start_ts: u64,
     end_ts: u64,
-    from_ts: u64,
-    to_ts: u64,
-    bucket_seconds: u64,
+    options: TimeSeriesOptions,
 ) {
-    if end_ts <= start_ts || to_ts <= from_ts || bucket_seconds == 0 {
+    if end_ts <= start_ts || options.to_ts <= options.from_ts || options.bucket_seconds == 0 {
         return;
     }
 
-    let clip_start = start_ts.max(from_ts);
-    let clip_end = end_ts.min(to_ts);
+    let clip_start = start_ts.max(options.from_ts);
+    let clip_end = end_ts.min(options.to_ts);
     if clip_end <= clip_start {
         return;
     }
 
-    add_range_to_buckets(clip_start, clip_end, bucket_seconds, |bucket_start, secs| {
-        let map = buckets.entry(bucket_start).or_default();
-        *map.entry(category.to_string()).or_insert(0) += secs;
-    });
+    let calendar_buckets = uses_calendar_day_buckets(options);
+    add_range_to_buckets(
+        clip_start,
+        clip_end,
+        options.bucket_seconds,
+        options.from_ts,
+        calendar_buckets,
+        |bucket_start, secs| {
+            let map = buckets.entry(bucket_start).or_default();
+            *map.entry(category.to_string()).or_insert(0) += secs;
+        },
+    );
 }
 
-fn add_range_to_buckets<F>(start_ts: u64, end_ts: u64, bucket_seconds: u64, mut add: F)
-where
+fn add_range_to_buckets<F>(
+    start_ts: u64,
+    end_ts: u64,
+    bucket_seconds: u64,
+    range_start: u64,
+    calendar_buckets: bool,
+    mut add: F,
+) where
     F: FnMut(u64, u64),
 {
     let mut cur = start_ts;
 
     while cur < end_ts {
-        let bucket_start = (cur / bucket_seconds) * bucket_seconds;
+        let bucket_start = if calendar_buckets {
+            calendar_bucket_start(cur, range_start, bucket_seconds)
+        } else {
+            (cur / bucket_seconds) * bucket_seconds
+        };
         let bucket_end = bucket_start.saturating_add(bucket_seconds);
         let chunk_end = end_ts.min(bucket_end);
         let secs = chunk_end.saturating_sub(cur);

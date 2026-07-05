@@ -1,5 +1,9 @@
 import { formatDurationSeconds } from "../../utils/formatDuration";
 import { chartTooltipStyle } from "../../utils/chartColors";
+import {
+  formatTimeSeriesTooltipTitle,
+  SECONDS_PER_DAY,
+} from "../../utils/timeSeriesBuckets";
 
 export type TimeSeriesTooltipBodyProps = {
   active?: boolean;
@@ -7,14 +11,17 @@ export type TimeSeriesTooltipBodyProps = {
     name?: string | number;
     value?: number | string;
     color?: string;
+    payload?: { ts?: number };
   }>;
   label?: string | number;
+  bucketSeconds?: number;
 };
 
 export function TimeSeriesTooltipBody({
   active,
   payload,
   label,
+  bucketSeconds = 120,
 }: TimeSeriesTooltipBodyProps) {
   if (!active || !payload?.length) {
     return null;
@@ -25,9 +32,15 @@ export function TimeSeriesTooltipBody({
     return null;
   }
 
+  const rowTs = payload[0]?.payload?.ts;
+  const titleText =
+    rowTs != null && bucketSeconds >= SECONDS_PER_DAY
+      ? `Tag: ${formatTimeSeriesTooltipTitle(rowTs, bucketSeconds)}`
+      : `Zeitfenster: ${label}`;
+
   return (
     <div className="chartTooltip" style={chartTooltipStyle.contentStyle}>
-      <p className="chartTooltipTitle">Zeitfenster: {label}</p>
+      <p className="chartTooltipTitle">{titleText}</p>
       <ul className="chartTooltipList">
         {rows.map((entry) => (
           <li key={String(entry.name)} className="chartTooltipRow">

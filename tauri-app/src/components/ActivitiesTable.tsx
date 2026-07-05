@@ -8,6 +8,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { invoke } from "@tauri-apps/api/core";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ActivitiesPage, Activity, TableExportFilter } from "../types";
 import {
@@ -15,6 +16,7 @@ import {
   dateInputToToTs,
   formatIsoDate,
 } from "../utils/dateRange";
+import { AppIcon } from "./Icon";
 
 type ActivityRow = {
   id: string;
@@ -34,29 +36,12 @@ type Props = {
   onExportFilterChange?: (filter: TableExportFilter) => void;
 };
 
-const SORT_COLUMN_LABELS: Record<string, string> = {
-  context: "Kontext",
-  date: "Datum",
-  time: "Uhrzeit",
-  project: "Projekt",
-};
-
 const DEFAULT_PAGE_SIZE = 20;
-const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
-
-function describeSortDirection(columnId: string, desc: boolean): string {
-  if (columnId === "date" || columnId === "time") {
-    return desc ? "neueste zuerst" : "älteste zuerst";
-  }
-  return desc ? "Z–A" : "A–Z";
-}
+const PAGE_SIZE_OPTIONS = [10, 20, 35, 50, 70, 85, 100, 200] as const;
 
 function describeSortState(sorting: SortingState): string {
-  const active = sorting[0];
-  if (!active) return "Sortierung: Datum, neueste zuerst";
-  const label = SORT_COLUMN_LABELS[active.id] ?? active.id;
-  const direction = describeSortDirection(active.id, active.desc);
-  return `Sortierung: ${label}, ${direction}`;
+  const desc = sorting[0]?.desc ?? true;
+  return desc ? "Sortierung: neueste zuerst" : "Sortierung: älteste zuerst";
 }
 
 function toRows(items: Activity[]): ActivityRow[] {
@@ -132,7 +117,11 @@ export function ActivitiesTable({
   }, [projectId, dateFrom, dateTo, debouncedContext]);
 
   const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
-    setSorting(updater);
+    setSorting((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      const active = next.find((s) => s.id === "date") ?? prev[0];
+      return [{ id: "date", desc: active?.desc ?? true }];
+    });
     setPagination((p) => ({ ...p, pageIndex: 0 }));
   };
 
@@ -252,20 +241,50 @@ export function ActivitiesTable({
         id: "context",
         accessorKey: "context",
         header: "Kontext",
-        enableSorting: true,
+        enableSorting: false,
       },
-      { id: "date", accessorKey: "date", header: "Datum", enableSorting: true },
+      {
+        id: "date",
+        accessorKey: "date",
+        header: ({ column }) => {
+          const sorted = column.getIsSorted();
+          const isOldestFirst = sorted === "asc";
+          return (
+            <button
+              type="button"
+              className="activitiesTableSortButton"
+              onClick={column.getToggleSortingHandler()}
+              title={
+                isOldestFirst
+                  ? "Älteste zuerst (klicken für neueste zuerst)"
+                  : "Neueste zuerst (klicken für älteste zuerst)"
+              }
+              aria-label={
+                isOldestFirst
+                  ? "Nach Datum sortieren: älteste zuerst"
+                  : "Nach Datum sortieren: neueste zuerst"
+              }
+            >
+              <span>Datum</span>
+              <AppIcon icon={isOldestFirst ? ArrowUp : ArrowDown} size={14} />
+            </button>
+          );
+        },
+        enableSorting: true,
+        enableSortingRemoval: false,
+        sortDescFirst: true,
+      },
       {
         id: "time",
         accessorKey: "time",
         header: "Uhrzeit",
-        enableSorting: true,
+        enableSorting: false,
       },
       {
         id: "project",
         accessorKey: "project",
         header: "Projekt",
-        enableSorting: true,
+        enableSorting: false,
       },
     ],
     [],
@@ -285,6 +304,7 @@ export function ActivitiesTable({
     onSortingChange: handleSortingChange,
     manualPagination: true,
     manualSorting: true,
+    enableSortingRemoval: false,
     getCoreRowModel: getCoreRowModel(),
     autoResetPageIndex: false,
   });
@@ -301,7 +321,9 @@ export function ActivitiesTable({
         <span>
           Filter und Sortierung gelten für alle Einträge in der Datenbank.
         </span>
-        <span>Spaltenköpfe anklicken zum Sortieren.</span>
+        <span>
+          Auf den «Datum»-Button in der Tabelle klicken zum Umschalten.
+        </span>
       </p>
       <p className="activitiesFilterStatus" aria-live="polite">
         <span className="activitiesFilterStatusItem activitiesFilterStatusSort">
@@ -392,34 +414,11 @@ export function ActivitiesTable({
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
-                {hg.headers.map((h) => {
-                  const sorted = h.column.getIsSorted();
-                  const sortClass = sorted
-                    ? sorted === "asc"
-                      ? "activitiesTableSortedAsc"
-                      : "activitiesTableSortedDesc"
-                    : undefined;
-                  return (
-                    <th
-                      key={h.id}
-                      className={
-                        h.column.getCanSort()
-                          ? ["activitiesTableSortable", sortClass]
-                              .filter(Boolean)
-                              .join(" ")
-                          : undefined
-                      }
-                      onClick={h.column.getToggleSortingHandler()}
-                      title={
-                        sorted
-                          ? `${SORT_COLUMN_LABELS[h.column.id] ?? h.column.id}, ${describeSortDirection(h.column.id, sorted === "desc")}`
-                          : undefined
-                      }
-                    >
-                      {flexRender(h.column.columnDef.header, h.getContext())}
-                    </th>
-                  );
-                })}
+                {hg.headers.map((h) => (
+                  <th key={h.id}>
+                    {flexRender(h.column.columnDef.header, h.getContext())}
+                  </th>
+                ))}
               </tr>
             ))}
           </thead>

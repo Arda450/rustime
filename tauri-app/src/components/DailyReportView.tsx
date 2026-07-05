@@ -197,22 +197,27 @@ export function DailyReportView({
           timelineBucketSeconds={DAILY_TIMELINE_BUCKET_SECONDS}
           trimLeadingEmptyBuckets={false}
           kpis={kpis}
+          reportSubtitle={`${formatIsoDateLong(reportDate)} · ${projectName}`}
           labels={{
-            pieTitle: "Kategorien",
-            pieHint: "Geschätzte Verweildauer an diesem Tag.",
+            pieTitle: "Kontexte",
+            pieHint: "Geschätzte Verweildauer pro Kontext an diesem Tag.",
             pieLegend: "Anteil an diesem Tag",
             pieEmpty: "Keine Kategoriedaten für diesen Tag.",
+            activityTypePieTitle: "Tätigkeitsklassen",
+            activityTypePieHint:
+              "Aufteilung nach Tätigkeit (Entwicklung, Kommunikation, Recherche, Organisation, Sonstiges).",
+            activityTypePieLegend: "Anteil an diesem Tag",
+            activityTypePieEmpty: "Keine Tätigkeitsdaten für diesen Tag.",
             timelineTitle: "Zeitverlauf (00:00–24:00)",
             timelineHint: `Aktive Zeit pro ${formatBucketLabel(DAILY_TIMELINE_BUCKET_SECONDS)}-Fenster.`,
             timelineLegend: "Summe an diesem Tag",
             timelineEmpty: "Kein Zeitverlauf für diesen Tag.",
-            topContextsTitle: "Top-Kategorien",
-            topTitlesTitle: "Top-Fenstertitel",
             showInTableTitle:
               "Filtert die Aktivitätstabelle links auf den gewählten Tag und zeigt alle einzelnen Fenster-Einträge.",
             showInTableLabel: "Details in Liste",
-            exportJson: "Tag als JSON",
-            exportCsv: "Tag als CSV",
+            exportJson: "Tag als JSON exportieren",
+            exportCsv: "Tag als CSV exportieren",
+            exportPdf: "Tag als PDF exportieren",
           }}
           extraSections={
             report.by_project_day.length > 0 ? (

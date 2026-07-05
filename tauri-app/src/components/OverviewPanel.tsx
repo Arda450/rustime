@@ -129,7 +129,9 @@ function OverviewPanel({
 }: OverviewPanelProps) {
   const [exportMsg, setExportMsg] = useState("");
   const [exportPreview, setExportPreview] = useState("");
-  const [isExporting, setIsExporting] = useState(false);
+  const [activeExport, setActiveExport] = useState<
+    "json-download" | "csv-download" | "json-preview" | null
+  >(null);
   const [chartView, setChartView] = useState<ChartView>("pie");
   const [dwellSegments, setDwellSegments] = useState<PieSegment[]>([]);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
@@ -258,7 +260,7 @@ function OverviewPanel({
 
   async function exportJsonToDownloads() {
     try {
-      setIsExporting(true);
+      setActiveExport("json-download");
       setExportMsg("");
       const path = await invoke<string>("export_activities_json_to_downloads", {
         projectId: exportFilter.projectId,
@@ -273,13 +275,13 @@ function OverviewPanel({
         `JSON-Export fehlgeschlagen: ${toUserMessage(parsed.code, parsed.message)}`,
       );
     } finally {
-      setIsExporting(false);
+      setActiveExport(null);
     }
   }
 
   async function exportCsvToDownloads() {
     try {
-      setIsExporting(true);
+      setActiveExport("csv-download");
       setExportMsg("");
       const result = await invoke<ExportCsvResult>("export_activities_csv_to_downloads", {
         projectId: exportFilter.projectId,
@@ -296,13 +298,13 @@ function OverviewPanel({
         `CSV-Export fehlgeschlagen: ${toUserMessage(parsed.code, parsed.message)}`,
       );
     } finally {
-      setIsExporting(false);
+      setActiveExport(null);
     }
   }
 
   async function previewJsonUi() {
     try {
-      setIsExporting(true);
+      setActiveExport("json-preview");
       setExportMsg("");
       const json = await invoke<string>("show_activities_json", {
         projectId: exportFilter.projectId,
@@ -322,7 +324,7 @@ function OverviewPanel({
         `JSON-Anzeige fehlgeschlagen: ${toUserMessage(parsed.code, parsed.message)}`,
       );
     } finally {
-      setIsExporting(false);
+      setActiveExport(null);
     }
   }
 
@@ -402,25 +404,31 @@ function OverviewPanel({
             <button
               type="button"
               onClick={exportJsonToDownloads}
-              disabled={isExporting || activityCount === 0}
+              disabled={activeExport !== null || activityCount === 0}
             >
-              {isExporting ? "Export läuft..." : "JSON in Downloads speichern"}
+              {activeExport === "json-download"
+                ? "Export läuft..."
+                : "JSON in Downloads speichern"}
             </button>
 
             <button
               type="button"
               onClick={exportCsvToDownloads}
-              disabled={isExporting || activityCount === 0}
+              disabled={activeExport !== null || activityCount === 0}
             >
-              {isExporting ? "Export läuft..." : "CSV in Downloads speichern"}
+              {activeExport === "csv-download"
+                ? "Export läuft..."
+                : "CSV in Downloads speichern"}
             </button>
 
             <button
               type="button"
               onClick={previewJsonUi}
-              disabled={isExporting || activityCount === 0}
+              disabled={activeExport !== null || activityCount === 0}
             >
-              {isExporting ? "Lade Vorschau..." : "JSON in UI anzeigen"}
+              {activeExport === "json-preview"
+                ? "Lade Vorschau..."
+                : "JSON in UI anzeigen"}
             </button>
           </div>
 

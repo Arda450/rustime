@@ -83,7 +83,7 @@ section li {
   border: 1px solid var(--border);
   background: var(--surface-strong);
   text-align: left;
-  max-height: 220px;
+  max-height: 400px;
   overflow: auto;
 }
 

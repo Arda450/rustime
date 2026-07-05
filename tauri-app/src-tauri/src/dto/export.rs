@@ -21,6 +21,8 @@ pub struct ExportMeta {
 pub struct ExportActivity {
     pub title: String,
     pub context_label: String,
+    /// Tätigkeitsklasse (Entwicklung, Kommunikation, Recherche, Organisation, Sonstiges).
+    pub activity_type: String,
     pub timestamp: u64,
     pub timestamp_utc: String,
     pub timestamp_local: String,
@@ -45,10 +47,21 @@ pub struct ExportAggregatedProjectRow {
     pub active_seconds: u64,
 }
 
+/// Geschätzte aktive Zeit pro Tätigkeitsklasse (Entwicklung, Kommunikation, etc.).
+#[derive(Serialize, Clone)]
+pub struct ExportAggregatedActivityTypeRow {
+    pub activity_type: String,
+    pub active_seconds: u64,
+}
+
 #[derive(Serialize)]
 pub struct ExportAggregated {
+    /// Zeit pro Projekt und Kontext (Detail).
     pub by_project_category: Vec<ExportAggregatedCategoryRow>,
+    /// Zeit pro Projekt (Summe).
     pub by_project: Vec<ExportAggregatedProjectRow>,
+    /// Zeit pro Tätigkeitsklasse (Übersicht).
+    pub by_activity_type: Vec<ExportAggregatedActivityTypeRow>,
 }
 
 /// Wurzelobjekt der Export-JSON-Datei.

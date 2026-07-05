@@ -10,10 +10,51 @@ export function chooseBucketSeconds(spanSeconds: number): number {
 }
 
 export function formatBucketLabel(bucketSeconds: number): string {
+  if (bucketSeconds >= 86_400 && bucketSeconds % 86_400 === 0) {
+    const days = bucketSeconds / 86_400;
+    return days === 1 ? "1 Tag" : `${days} Tage`;
+  }
   if (bucketSeconds < 60) return `${bucketSeconds} Sekunden`;
   if (bucketSeconds % 60 === 0) {
     const min = bucketSeconds / 60;
     return min === 1 ? "1 Minute" : `${min} Minuten`;
   }
   return `${bucketSeconds} Sekunden`;
+}
+
+export const SECONDS_PER_DAY = 86_400;
+
+/** X-Achsen-Label: Uhrzeit für kurze Buckets, Datum für Tages-Buckets (Wochenbericht). */
+export function formatTimeSeriesAxisLabel(
+  ts: number,
+  bucketSeconds: number,
+): string {
+  const d = new Date(ts * 1000);
+  if (bucketSeconds >= SECONDS_PER_DAY) {
+    const weekday = d.toLocaleDateString("de-CH", { weekday: "short" });
+    const day = d.getDate().toString().padStart(2, "0");
+    const month = (d.getMonth() + 1).toString().padStart(2, "0");
+    return `${weekday} ${day}.${month}.`;
+  }
+  const hh = d.getHours().toString().padStart(2, "0");
+  const mm = d.getMinutes().toString().padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+/** Tooltip-Titel passend zum Bucket-Typ. */
+export function formatTimeSeriesTooltipTitle(
+  ts: number,
+  bucketSeconds: number,
+  fallbackLabel?: string | number,
+): string {
+  if (bucketSeconds >= SECONDS_PER_DAY) {
+    const d = new Date(ts * 1000);
+    return d.toLocaleDateString("de-CH", {
+      weekday: "long",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+  return String(fallbackLabel ?? "");
 }
