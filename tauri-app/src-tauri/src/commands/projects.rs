@@ -1,55 +1,50 @@
-//! Projekt-Commands: Ordner wählen, Projekte listen und aktives Projekt setzen.
+//! Projekt-Commands: Projekte anlegen, listen und aktives Projekt setzen.
 //!
 //! Das aktive Projekt liegt zusätzlich im `TrackingState` (für Inserts im Tracking-Loop).
 
-use std::path::Path;
 use tauri::State;
 
+use crate::commands::tracking::stop_tracking_internal;
 use crate::dto::project::ProjectDto;
 use crate::error::ApiError;
-use rustime_db::{get_project_by_id, list_projects, upsert_project};
+use rustime_db::{
+    create_project as create_project_db, delete_project as delete_project_db, get_project_by_id,
+    list_projects,
+};
 use rustime_tracking::{current_timestamp, TrackingState};
 
-// Leitet aus einem Dateipfad einen sinnvollen Projektnamen ab.
-// Falls kein Dateiname bestimmbar ist, wird der volle Pfad genutzt.
-fn name_from_path(path: &str) -> String {
-    Path::new(path)
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or(path)
-        .to_string()
-}
-
-/// Speichert ein Projekt aus dem Ordner-Dialog (Upsert) und setzt es als aktiv.
+/// Legt ein Projekt nur mit Namen an (ohne File-Explorer) und setzt es als aktiv.
 #[tauri::command]
-pub fn select_project_path(
-    state: State<TrackingState>,
-    path: String,
-) -> Result<ProjectDto, ApiError> {
-    // Name wird aus dem letzten Pfadsegment gebildet (z. B. Ordnername).
-    let name = name_from_path(&path);
+pub fn create_project(state: State<TrackingState>, name: String) -> Result<ProjectDto, ApiError> {
+    let trimmed = name.trim().to_string();
+    if trimmed.is_empty() {
+        return Err(ApiError::new(
+            "INVALID_PROJECT_NAME",
+            "Projektname darf nicht leer sein",
+        ));
+    }
+    if trimmed.len() > 120 {
+        return Err(ApiError::new(
+            "INVALID_PROJECT_NAME",
+            "Projektname ist zu lang (max. 120 Zeichen)",
+        ));
+    }
 
-    // DB-Verbindung aus dem globalen State holen; Lock-Fehler sauber mappen.
     let db_conn = state
         .db
         .lock()
         .map_err(|_| ApiError::new("DB_LOCK_FAILED", "Datenbank-Lock fehlgeschlagen"))?;
 
-    // Projekt anlegen oder aktualisieren (Upsert), inkl. Zeitstempel.
     let project =
-        upsert_project(&db_conn, &name, &path, current_timestamp()).map_err(ApiError::from)?;
-
-    // DB-Lock früh freigeben, bevor der nächste Lock angefordert wird.
+        create_project_db(&db_conn, &trimmed, current_timestamp()).map_err(ApiError::from)?;
     drop(db_conn);
 
-    // In-Memory-Status für das aktuell aktive Projekt aktualisieren.
     let mut active = state
         .active_project
         .lock()
         .map_err(|_| ApiError::new("LOCK_POISONED", "Projekt-Lock fehlgeschlagen"))?;
     *active = Some((project.id, project.name.clone()));
 
-    // DTO ist die API-Antwort für das Frontend.
     Ok(ProjectDto {
         id: project.id,
         name: project.name,
@@ -124,4 +119,36 @@ pub fn set_active_project(
         name: project.name,
         path: project.path,
     })
+}
+
+/// Löscht ein Projekt samt zugehöriger Aktivitäten anhand der ID.
+/// War das gelöschte Projekt aktiv, wird der aktive Zustand zurückgesetzt und das Tracking gestoppt.
+#[tauri::command]
+pub fn delete_project(state: State<TrackingState>, project_id: i64) -> Result<(), ApiError> {
+    // DB-Lock für die Löschung des Projekts und seiner Aktivitäten.
+    let db_conn = state
+        .db
+        .lock()
+        .map_err(|_| ApiError::new("DB_LOCK_FAILED", "Datenbank-Lock fehlgeschlagen"))?;
+
+    delete_project_db(&db_conn, project_id).map_err(ApiError::from)?;
+
+    // DB-Lock früh freigeben, bevor der State-Lock angefordert wird.
+    drop(db_conn);
+
+    // Falls das gelöschte Projekt aktiv war, aktiven Zustand zurücksetzen.
+    let mut cleared_active = false;
+    if let Ok(mut active) = state.active_project.lock() {
+        if active.as_ref().map(|(id, _)| *id) == Some(project_id) {
+            *active = None;
+            cleared_active = true;
+        }
+    }
+
+    // Ohne aktives Projekt ergibt weiteres Tracking keinen Sinn.
+    if cleared_active {
+        stop_tracking_internal(&state);
+    }
+
+    Ok(())
 }

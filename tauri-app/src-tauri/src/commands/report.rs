@@ -6,15 +6,14 @@ use chrono::{Local, TimeZone};
 use tauri::State;
 
 use crate::dto::stats::{
-    CategoryTimeSeriesPointDto, CategoryValueDto, DailyReportDto, DwellSegmentDto,
-    WeeklyReportDto,
+    CategoryTimeSeriesPointDto, CategoryValueDto, DailyReportDto, DwellSegmentDto, WeeklyReportDto,
 };
 use crate::error::ApiError;
 use rustime_core::{classify_activity_type, ActivityType};
 use rustime_db::{
-    dwell_by_category_in_range, dwell_time_series_by_category,
-    get_activities_filtered, get_activities_for_project_in_range, ActivitiesFilter,
-    ActivityWithProject, DwellOptions, TimeSeriesOptions,
+    dwell_by_category_in_range, dwell_time_series_by_category, get_activities_filtered,
+    get_activities_for_project_in_range, ActivitiesFilter, ActivityWithProject, DwellOptions,
+    TimeSeriesOptions,
 };
 use rustime_tracking::TrackingState;
 
@@ -166,12 +165,8 @@ pub fn build_period_report_core(
         range_end,
     ));
     let by_activity_type = compute_by_activity_type(rows, range_start, range_end, dwell);
-    let all_segments = dwell_by_category_in_range(
-        rows,
-        dwell.dwell_opts(0),
-        range_start,
-        range_end,
-    );
+    let all_segments =
+        dwell_by_category_in_range(rows, dwell.dwell_opts(0), range_start, range_end);
     let total_active_seconds: u64 = all_segments.iter().map(|s| s.value_seconds).sum();
     let context_count = count_distinct_contexts(&map_dwell_segments(all_segments));
 
@@ -251,12 +246,8 @@ pub fn compute_by_day(
         .iter()
         .filter_map(|&day_start| {
             let day_end = day_end_exclusive(day_start);
-            let segments = dwell_by_category_in_range(
-                rows,
-                dwell.dwell_opts(0),
-                day_start,
-                day_end,
-            );
+            let segments =
+                dwell_by_category_in_range(rows, dwell.dwell_opts(0), day_start, day_end);
             let total: u64 = segments.iter().map(|s| s.value_seconds).sum();
             if total == 0 {
                 None
@@ -292,6 +283,7 @@ pub fn resolve_project_name(
 }
 
 /// Aggregierter Tagesbericht für ein Projekt (KPIs, Kategorien, Zeitverlauf).
+/// Die "Zeit pro Projekt"-Daten werden NICHT mehr hier geladen (siehe `get_by_project_for_range`).
 #[tauri::command]
 pub fn get_daily_report(
     state: State<TrackingState>,
@@ -329,15 +321,8 @@ pub fn get_daily_report(
         .map(|p| p.name);
     core.project_name = resolve_project_name(&rows, fallback_name);
 
-    let day_filter = ActivitiesFilter {
-        project_id: None,
-        from_ts: Some(from_ts),
-        to_ts: Some(to_ts),
-        context_query: None,
-    };
-    let all_day_rows = get_activities_filtered(&db_conn, &day_filter).map_err(ApiError::from)?;
-    let by_project_day =
-        compute_by_project_for_range(&all_day_rows, range_start, range_end_exclusive, dwell);
+    // "Zeit pro Projekt" wird jetzt lazy über get_by_project_for_range geladen
+    let by_project_day = Vec::new();
 
     Ok(DailyReportDto {
         date,
@@ -354,6 +339,7 @@ pub fn get_daily_report(
 }
 
 /// Aggregierter Wochenbericht für ein Projekt (Mo–So, KPIs, Tagesverlauf).
+/// Die "Zeit pro Projekt"-Daten werden NICHT mehr hier geladen (siehe `get_by_project_for_range`).
 #[tauri::command]
 pub fn get_weekly_report(
     state: State<TrackingState>,
@@ -400,15 +386,8 @@ pub fn get_weekly_report(
     }
     let by_day = compute_by_day(&rows, &day_starts, dwell);
 
-    let week_filter = ActivitiesFilter {
-        project_id: None,
-        from_ts: Some(from_ts),
-        to_ts: Some(to_ts),
-        context_query: None,
-    };
-    let all_week_rows = get_activities_filtered(&db_conn, &week_filter).map_err(ApiError::from)?;
-    let by_project_week =
-        compute_by_project_for_range(&all_week_rows, range_start, range_end_exclusive, dwell);
+    // "Zeit pro Projekt" wird jetzt lazy über get_by_project_for_range geladen
+    let by_project_week = Vec::new();
 
     let active_days = by_day.len() as i64;
 
@@ -427,4 +406,39 @@ pub fn get_weekly_report(
         by_project_week,
         timeline: core.timeline,
     })
+}
+
+/// Lazy-Load: "Zeit pro Projekt" für einen Zeitraum (alle Projekte).
+/// Wird separat aufgerufen, damit der Hauptbericht schnell lädt.
+#[tauri::command]
+pub fn get_by_project_for_range(
+    state: State<TrackingState>,
+    from_ts: u64,
+    to_ts: u64,
+    max_segment_gap_seconds: Option<u64>,
+    tail_seconds: Option<u64>,
+) -> Result<Vec<DwellSegmentDto>, ApiError> {
+    let dwell = DwellParams::from_options(max_segment_gap_seconds, tail_seconds);
+    let db_conn = state
+        .db
+        .lock()
+        .map_err(|_| ApiError::new("DB_LOCK_FAILED", "Datenbank-Lock fehlgeschlagen"))?;
+
+    let filter = ActivitiesFilter {
+        project_id: None,
+        from_ts: Some(from_ts),
+        to_ts: Some(to_ts),
+        context_query: None,
+    };
+    let all_rows = get_activities_filtered(&db_conn, &filter).map_err(ApiError::from)?;
+
+    let range_start = from_ts;
+    let range_end_exclusive = day_end_exclusive(day_start_from_ts(to_ts));
+
+    Ok(compute_by_project_for_range(
+        &all_rows,
+        range_start,
+        range_end_exclusive,
+        dwell,
+    ))
 }

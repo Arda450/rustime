@@ -35,6 +35,28 @@ pub fn upsert_project(
     Ok(p)
 }
 
+/// Legt ein neues Projekt nur mit Namen an (ohne Ordnerpfad aus dem Explorer).
+/// Der interne `path` bleibt UNIQUE und wird synthetisch erzeugt.
+/// `name` muss bereits getrimmt und nicht leer sein (Validierung im Command).
+pub fn create_project(conn: &Connection, name: &str, now_ts: u64) -> Result<DbProject, DbError> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    let path = format!("manual:{name}:{now_ts}:{nanos}");
+    conn.execute(
+        "INSERT INTO projects (name, path, created_at) VALUES (?1, ?2, ?3)",
+        params![name, path, now_ts as i64],
+    )?;
+
+    let id = conn.last_insert_rowid();
+    Ok(DbProject {
+        id,
+        name: name.to_string(),
+        path,
+    })
+}
+
 // listet alle projekte in der datenbank und gibt sie als vector von dbprojects zurück
 // Rückgabetyp ist ein vector von dbprojects
 pub fn list_projects(conn: &Connection) -> Result<Vec<DbProject>, DbError> {
@@ -53,6 +75,18 @@ pub fn list_projects(conn: &Connection) -> Result<Vec<DbProject>, DbError> {
 /// Löscht alle Projekte aus der Datenbank.
 pub fn delete_all_projects(conn: &Connection) -> Result<usize, DbError> {
     let count = conn.execute("DELETE FROM projects", [])?;
+    Ok(count)
+}
+
+/// Löscht ein einzelnes Projekt samt zugehöriger Aktivitäten.
+/// Aktivitäten werden zuerst entfernt, damit die Foreign-Key-Bedingung eingehalten wird.
+/// Rückgabe ist die Anzahl gelöschter Projektzeilen (0 wenn nicht vorhanden).
+pub fn delete_project(conn: &Connection, project_id: i64) -> Result<usize, DbError> {
+    conn.execute(
+        "DELETE FROM activities WHERE project_id = ?1",
+        params![project_id],
+    )?;
+    let count = conn.execute("DELETE FROM projects WHERE id = ?1", params![project_id])?;
     Ok(count)
 }
 

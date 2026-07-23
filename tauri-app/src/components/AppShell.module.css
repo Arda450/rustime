@@ -1,0 +1,32 @@
+/**
+ * AppShell.module.css – Hauptlayout: Sidebar + Inhalt
+ * Komponente: App.tsx
+ */
+
+.Page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 16px;
+  min-height: calc(100vh - 0px);
+}
+
+.Main {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  box-sizing: border-box;
+  overflow-x: hidden;
+}

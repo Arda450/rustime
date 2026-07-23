@@ -30,15 +30,18 @@ export function colorForCategory(
   return colorForCategoryIndex(idx >= 0 ? idx : orderedNames.length);
 }
 
-/** Recharts-Tooltip: kein Scroll, alles sichtbar; hoher z-index für Portal-Rendering. */
+/** Recharts-Tooltip: kompakt, gut lesbar; hoher z-index für Portal-Rendering.
+ * Text nutzt var(--text) statt der Serienfarbe (bessere Lesbarkeit, Dark/Light). */
 export const chartTooltipStyle = {
   contentStyle: {
     background: "var(--surface-strong)",
     border: "1px solid var(--border)",
     color: "var(--text)",
     borderRadius: "6px",
-    padding: "10px 12px",
-    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.18)",
+    padding: "6px 9px",
+    fontSize: "0.78rem",
+    lineHeight: 1.25,
+    boxShadow: "0 6px 18px rgba(0, 0, 0, 0.22)",
   },
   wrapperStyle: {
     outline: "none",
@@ -48,6 +51,14 @@ export const chartTooltipStyle = {
     pointerEvents: "none",
   },
   itemStyle: {
-    padding: "2px 0",
+    padding: "1px 0",
+    fontSize: "0.78rem",
+    color: "var(--text)",
+  },
+  labelStyle: {
+    color: "var(--muted)",
+    fontSize: "0.72rem",
+    fontWeight: 700,
+    marginBottom: "3px",
   },
 } as const;

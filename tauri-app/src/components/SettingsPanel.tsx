@@ -1,12 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { AppIcon } from "./Icon";
-import { BarChart, Database, Moon, Sun } from "lucide-react";
-
-type AppStats = {
-  activity_count: number;
-  project_count: number;
-};
+import { ConfirmDialog } from "./ConfirmDialog";
+import { useToast } from "./toast/ToastContext";
+import { Database, Moon, Sun } from "lucide-react";
 
 type SettingsPanelProps = {
   theme: "dark" | "light";
@@ -19,34 +16,24 @@ export function SettingsPanel({
   onThemeChange,
   onDataCleared,
 }: SettingsPanelProps) {
-  const [stats, setStats] = useState<AppStats | null>(null);
+  const toast = useToast();
   const [isClearing, setIsClearing] = useState(false);
-  const [message, setMessage] = useState("");
-
-  async function loadStats() {
-    try {
-      const data = await invoke<AppStats>("get_app_stats");
-      setStats(data);
-    } catch (e) {
-      console.error("get_app_stats failed", e);
-    }
-  }
-
-  useEffect(() => {
-    loadStats();
-  }, []);
+  const [pendingClear, setPendingClear] = useState<"activities" | "all" | null>(
+    null,
+  );
 
   async function handleClearActivities() {
-    if (!confirm("Alle Aktivitäten unwiderruflich löschen?")) return;
-
     setIsClearing(true);
     try {
       const count = await invoke<number>("clear_all_activities");
-      setMessage(`${count} Aktivitäten gelöscht.`);
-      await loadStats();
+      toast.success(
+        count === 1
+          ? "1 Aktivität gelöscht"
+          : `${count} Aktivitäten gelöscht`,
+      );
       onDataCleared();
     } catch (e) {
-      setMessage("Fehler beim Löschen.");
+      toast.error("Aktivitäten konnten nicht gelöscht werden.");
       console.error(e);
     } finally {
       setIsClearing(false);
@@ -54,19 +41,13 @@ export function SettingsPanel({
   }
 
   async function handleClearAll() {
-    if (
-      !confirm("ALLE Daten (Projekte und Aktivitäten) unwiderruflich löschen?")
-    )
-      return;
-
     setIsClearing(true);
     try {
       await invoke<number>("clear_all_projects");
-      setMessage("Alle Daten gelöscht.");
-      await loadStats();
+      toast.success("Alle Daten gelöscht");
       onDataCleared();
     } catch (e) {
-      setMessage("Fehler beim Löschen.");
+      toast.error("Daten konnten nicht gelöscht werden.");
       console.error(e);
     } finally {
       setIsClearing(false);
@@ -94,39 +75,15 @@ export function SettingsPanel({
               {theme === "dark" ? "Dark" : "Light"} Mode
             </h4>
           </div>
-          <div
+          <button
+            type="button"
             className={`toggleSwitch ${theme === "dark" ? "active" : ""}`}
             onClick={toggleTheme}
             role="switch"
             aria-checked={theme === "dark"}
+            aria-label="Dunkles Erscheinungsbild umschalten"
           />
         </div>
-      </div>
-
-      {/* Statistiken */}
-      <div className="settingsSection">
-        <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <AppIcon icon={BarChart} size={16} aria-hidden />
-          Statistiken
-        </h3>
-        {stats ? (
-          <div className="statsGrid">
-            <div className="statCard">
-              <div className="value">{stats.activity_count}</div>
-              <div className="label">
-                {stats.activity_count === 1 ? "Aktivität" : "Aktivitäten"}
-              </div>
-            </div>
-            <div className="statCard">
-              <div className="value">{stats.project_count}</div>
-              <div className="label">
-                {stats.project_count === 1 ? "Projekt" : "Projekte"}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <p style={{ color: "var(--muted)" }}>Lade Statistiken...</p>
-        )}
       </div>
 
       {/* Datenverwaltung */}
@@ -143,8 +100,8 @@ export function SettingsPanel({
           <div className="settingControl">
             <button
               className="danger"
-              onClick={handleClearActivities}
-              disabled={isClearing || !stats?.activity_count}
+              onClick={() => setPendingClear("activities")}
+              disabled={isClearing}
             >
               Löschen
             </button>
@@ -158,18 +115,13 @@ export function SettingsPanel({
           <div className="settingControl">
             <button
               className="danger"
-              onClick={handleClearAll}
-              disabled={
-                isClearing || (!stats?.activity_count && !stats?.project_count)
-              }
+              onClick={() => setPendingClear("all")}
+              disabled={isClearing}
             >
               Alles löschen
             </button>
           </div>
         </div>
-        {message && (
-          <p style={{ marginTop: 12, color: "var(--accent)" }}>{message}</p>
-        )}
       </div>
 
       {/* App Info */}
@@ -178,6 +130,31 @@ export function SettingsPanel({
         <br />
         Lokales Activity-Tracking für Windows
       </div>
+
+      <ConfirmDialog
+        open={pendingClear !== null}
+        title={
+          pendingClear === "all"
+            ? "Alle Daten löschen?"
+            : "Alle Aktivitäten löschen?"
+        }
+        description={
+          pendingClear === "all"
+            ? "Projekte und Aktivitäten werden unwiderruflich gelöscht."
+            : "Alle erfassten Fenster-Aktivitäten werden unwiderruflich gelöscht."
+        }
+        confirmLabel={isClearing ? "Wird gelöscht…" : "Endgültig löschen"}
+        onOpenChange={(open) => {
+          if (!open) setPendingClear(null);
+        }}
+        onConfirm={() => {
+          if (pendingClear === "all") {
+            void handleClearAll();
+          } else if (pendingClear === "activities") {
+            void handleClearActivities();
+          }
+        }}
+      />
     </section>
   );
 }

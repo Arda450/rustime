@@ -1,6 +1,6 @@
 //! Demo-Daten für UI- und Performance-Tests.
 //!
-//! Simuliert echtes Tracking: 2-Sekunden-Samples in Arbeitsblöcken,
+//! Simuliert echtes Tracking: Minutenaggregate in Arbeitsblöcken,
 //! mit Pausen (Nacht, Mittag). Schwerpunkt auf Projekt „rustime“.
 
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -12,12 +12,12 @@ use crate::activity_repo::{count_activities, delete_all_activities};
 use crate::project_repo::{delete_all_projects, upsert_project};
 use crate::DbError;
 
-/// Wie echtes Polling (siehe `start_tracking`).
-const POLL_INTERVAL_SECS: u64 = 2;
+/// Wie die persistierte Minutenaggregation (siehe `start_tracking`).
+const POLL_INTERVAL_SECS: u64 = 60;
 
 /// Fenster bleiben mehrere Minuten gleich, dann Wechsel.
-const MIN_SAMPLES_PER_TITLE: u64 = 45; // ~1.5 min
-const MAX_SAMPLES_PER_TITLE: u64 = 150; // ~5 min
+const MIN_SAMPLES_PER_TITLE: u64 = 2;
+const MAX_SAMPLES_PER_TITLE: u64 = 5;
 
 const RUSTIME_TITLES: &[&str] = &[
     "lib.rs - rustime - Visual Studio Code",
@@ -157,10 +157,7 @@ fn local_midnight_unix(days_ago: i64) -> u64 {
     let today = Local::now().date_naive();
     let date = today - chrono::Duration::days(days_ago);
     Local
-        .from_local_datetime(
-            &date.and_hms_opt(0, 0, 0)
-                .expect("Mitternacht ist gültig"),
-        )
+        .from_local_datetime(&date.and_hms_opt(0, 0, 0).expect("Mitternacht ist gültig"))
         .single()
         .map(|dt| dt.timestamp().max(0) as u64)
         .unwrap_or(0)
@@ -268,13 +265,17 @@ fn insert_planned_samples(
     project_ids: &[i64],
 ) -> Result<(), DbError> {
     let tx = conn.unchecked_transaction()?;
-    const INSERT: &str =
-        "INSERT INTO activities (window_title, timestamp, project_id) VALUES (?1, ?2, ?3)";
+    const INSERT: &str = "INSERT INTO activities
+        (window_title, timestamp, project_id, duration_seconds)
+        VALUES (?1, ?2, ?3, ?4)";
 
     for (ts, title, project_index) in planned {
         let idx = (*project_index).min(project_ids.len().saturating_sub(1));
         let project_id = project_ids[idx];
-        tx.execute(INSERT, params![title, *ts as i64, project_id])?;
+        tx.execute(
+            INSERT,
+            params![title, *ts as i64, project_id, POLL_INTERVAL_SECS as i64],
+        )?;
     }
 
     tx.commit()?;

@@ -32,6 +32,21 @@ pub struct CategoryTimeSeriesPointDto {
     pub categories: Vec<CategoryValueDto>,
 }
 
+/// Kompakte Gesamtstatistik aller Projekte für die Übersicht.
+#[derive(Serialize)]
+pub struct OverviewStatsDto {
+    pub from_ts: u64,
+    pub to_ts: u64,
+    pub activity_count: i64,
+    pub project_count: i64,
+    pub total_active_seconds: u64,
+    pub today_active_seconds: u64,
+    pub active_days: i64,
+    pub first_activity_ts: Option<u64>,
+    pub by_project: Vec<DwellSegmentDto>,
+    pub timeline: Vec<CategoryTimeSeriesPointDto>,
+}
+
 /// Tagesbericht für ein Projekt an einem Kalendertag.
 #[derive(Serialize)]
 pub struct DailyReportDto {

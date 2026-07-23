@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { ChartLegendEntry } from "../../utils/chartLegend";
 
 type Props = {
@@ -10,7 +11,7 @@ function truncateLabel(name: string, maxLen = 36): string {
   return `${name.slice(0, maxLen - 1)}…`;
 }
 
-export default function ChartLegend({ entries, viewLabel }: Props) {
+function ChartLegendInner({ entries, viewLabel }: Props) {
   if (entries.length === 0) {
     return null;
   }
@@ -36,3 +37,6 @@ export default function ChartLegend({ entries, viewLabel }: Props) {
     </aside>
   );
 }
+
+const ChartLegend = memo(ChartLegendInner);
+export default ChartLegend;

@@ -1,5 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { ExportCsvResult, ReportCore } from "../types";
 import {
   buildChartLegendEntries,
@@ -9,6 +17,13 @@ import ActivityPieChart from "../components/charts/PieChart";
 import type { PieSegment } from "../components/charts/PieChart";
 import TimeSeriesChart from "../components/charts/TimeSeriesChart";
 import ChartLegend from "../components/charts/ChartLegend";
+import { useToast } from "../components/toast/ToastContext";
+import { fileNameFromPath } from "../utils/fileNameFromPath";
+import {
+  aggregatedCsvPathBeside,
+  defaultExportFileName,
+  pickExportSavePath,
+} from "../utils/exportSaveDialog";
 import { REPORT_ESTIMATION_HINT } from "./reportConfig";
 import { buildReportPdf } from "./exportReportPdf";
 
@@ -30,11 +45,17 @@ export type ReportBodyLabels = {
   timelineHint: string;
   timelineLegend: string;
   timelineEmpty: string;
-  showInTableTitle: string;
-  showInTableLabel: string;
   exportJson: string;
   exportCsv: string;
   exportPdf: string;
+};
+
+export type ReportExportApi = {
+  exportJson: () => void;
+  exportCsv: () => void;
+  exportPdf: () => void;
+  busy: boolean;
+  labels: Pick<ReportBodyLabels, "exportJson" | "exportCsv" | "exportPdf">;
 };
 
 type Props = {
@@ -53,10 +74,10 @@ type Props = {
     toTs: number;
     contextQuery: null;
   };
-  onShowInTable: () => void;
+  onExportApiChange?: (api: ReportExportApi | null) => void;
 };
 
-export function ReportBody({
+function ReportBodyInner({
   report,
   isRefreshing,
   narrativeSummary,
@@ -67,12 +88,22 @@ export function ReportBody({
   extraSections,
   reportSubtitle,
   exportArgs,
-  onShowInTable,
+  onExportApiChange,
 }: Props) {
-  const [exportMsg, setExportMsg] = useState("");
+  const toast = useToast();
   const [activeExport, setActiveExport] = useState<
     "json" | "csv" | "pdf" | null
   >(null);
+  // Deferred Rendering: Charts erst nach dem ersten Frame rendern,
+  // damit die UI sofort erscheint und nicht blockiert.
+  const [chartsReady, setChartsReady] = useState(false);
+
+  useEffect(() => {
+    // requestAnimationFrame sorgt dafür, dass der erste Frame gezeichnet wird,
+    // bevor die schweren Charts gerendert werden.
+    const id = requestAnimationFrame(() => setChartsReady(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   const activityTypeChartRef = useRef<HTMLDivElement>(null);
   const pieChartRef = useRef<HTMLDivElement>(null);
@@ -103,7 +134,12 @@ export function ReportBody({
 
   const activityTypeLegendEntries = useMemo(
     () =>
-      buildChartLegendEntries(activityTypeOrder, "pie", activityTypePieSegments, []),
+      buildChartLegendEntries(
+        activityTypeOrder,
+        "pie",
+        activityTypePieSegments,
+        [],
+      ),
     [activityTypeOrder, activityTypePieSegments],
   );
 
@@ -135,10 +171,17 @@ export function ReportBody({
     [categoryOrder, pieSegments, timeline],
   );
 
-  async function exportPdf() {
+  const exportPdf = useCallback(async () => {
     try {
+      const targetPath = await pickExportSavePath({
+        title: "PDF speichern",
+        defaultFileName: defaultExportFileName("rustime-bericht", "pdf"),
+        extension: "pdf",
+        filterName: "PDF",
+      });
+      if (!targetPath) return;
+
       setActiveExport("pdf");
-      setExportMsg("");
 
       const sections = [
         ...(activityTypePieSegments.length > 0
@@ -176,53 +219,120 @@ export function ReportBody({
         sections,
       });
 
-      const path = await invoke<string>("export_report_pdf_to_downloads", {
+      const path = await invoke<string>("export_report_pdf_to_path", {
         pdfBytes: Array.from(pdfBytes),
+        targetPath,
       });
-      setExportMsg(`PDF gespeichert: ${path}`);
+      toast.success("PDF exportiert", {
+        detail: fileNameFromPath(path),
+      });
     } catch (e) {
       console.error("report export pdf failed", e);
-      setExportMsg("PDF-Export fehlgeschlagen.");
+      toast.error("PDF-Export fehlgeschlagen.");
     } finally {
       setActiveExport(null);
     }
-  }
+  }, [
+    activityTypeLegendEntries,
+    activityTypePieSegments.length,
+    kpis,
+    labels.activityTypePieHint,
+    labels.activityTypePieTitle,
+    labels.pieHint,
+    labels.pieTitle,
+    labels.timelineHint,
+    labels.timelineTitle,
+    narrativeSummary,
+    pieLegendEntries,
+    reportSubtitle,
+    timelineLegendEntries,
+    toast,
+  ]);
 
-  async function exportJson() {
+  const exportJson = useCallback(async () => {
     try {
+      const targetPath = await pickExportSavePath({
+        title: "JSON speichern",
+        defaultFileName: defaultExportFileName("rustime-export", "json"),
+        extension: "json",
+        filterName: "JSON",
+      });
+      if (!targetPath) return;
+
       setActiveExport("json");
-      setExportMsg("");
-      const path = await invoke<string>(
-        "export_activities_json_to_downloads",
-        exportArgs,
-      );
-      setExportMsg(`JSON gespeichert: ${path}`);
+      const path = await invoke<string>("export_activities_json_to_path", {
+        ...exportArgs,
+        targetPath,
+      });
+      toast.success("JSON exportiert", {
+        detail: fileNameFromPath(path),
+      });
     } catch (e) {
       console.error("report export json failed", e);
-      setExportMsg("JSON-Export fehlgeschlagen.");
+      toast.error("JSON-Export fehlgeschlagen.");
     } finally {
       setActiveExport(null);
     }
-  }
+  }, [exportArgs, toast]);
 
-  async function exportCsv() {
+  const exportCsv = useCallback(async () => {
     try {
+      const samplesPath = await pickExportSavePath({
+        title: "CSV Zeiteinträge speichern",
+        defaultFileName: defaultExportFileName("rustime-samples", "csv"),
+        extension: "csv",
+        filterName: "CSV",
+      });
+      if (!samplesPath) return;
+
       setActiveExport("csv");
-      setExportMsg("");
+      const aggregatedPath = aggregatedCsvPathBeside(samplesPath);
       const result = await invoke<ExportCsvResult>(
-        "export_activities_csv_to_downloads",
-        exportArgs,
+        "export_activities_csv_to_paths",
+        {
+          ...exportArgs,
+          samplesPath,
+          aggregatedPath,
+        },
       );
-      setExportMsg(
-        `CSV gespeichert — Samples: ${result.samples_path} | Aggregation: ${result.aggregated_path}`,
-      );
+      toast.success("CSV exportiert", {
+        detail: `${fileNameFromPath(result.samples_path)} · ${fileNameFromPath(result.aggregated_path)}`,
+      });
     } catch (e) {
       console.error("report export csv failed", e);
-      setExportMsg("CSV-Export fehlgeschlagen.");
+      toast.error("CSV-Export fehlgeschlagen.");
     } finally {
       setActiveExport(null);
     }
-  }
+  }, [exportArgs, toast]);
+
+  useEffect(() => {
+    if (!onExportApiChange) return;
+    onExportApiChange({
+      exportJson: () => void exportJson(),
+      exportCsv: () => void exportCsv(),
+      exportPdf: () => void exportPdf(),
+      busy: activeExport !== null,
+      labels: {
+        exportJson: labels.exportJson,
+        exportCsv: labels.exportCsv,
+        exportPdf: labels.exportPdf,
+      },
+    });
+  }, [
+    activeExport,
+    exportCsv,
+    exportJson,
+    exportPdf,
+    labels.exportCsv,
+    labels.exportJson,
+    labels.exportPdf,
+    onExportApiChange,
+  ]);
+
+  useEffect(() => {
+    return () => onExportApiChange?.(null);
+  }, [onExportApiChange]);
 
   return (
     <div
@@ -248,85 +358,83 @@ export function ReportBody({
 
       {extraSections}
 
-      {activityTypePieSegments.length > 0 && (
-        <div className="periodReportActivityTypeChart">
-          <h4 className="periodReportChartTitle">{labels.activityTypePieTitle}</h4>
-          <p className="periodReportChartHint">{labels.activityTypePieHint}</p>
-          <div className="periodReportChartPane periodReportChartPaneActivityType">
-            <div ref={activityTypeChartRef} className="periodReportPdfCapture">
-              <ActivityPieChart
-              data={activityTypePieSegments}
-              categoryOrder={activityTypeOrder}
-              emptyHint={labels.activityTypePieEmpty}
-            />
+      {/* Charts werden erst nach dem ersten Frame gerendert (deferred) */}
+      {!chartsReady ? (
+        <p className="periodReportMuted">Lade Diagramme…</p>
+      ) : (
+        <>
+          {/* Beide Pie-Charts nebeneinander (weniger Whitespace) */}
+          <div className="periodReportPieRow">
+            {activityTypePieSegments.length > 0 && (
+              <div className="periodReportChartBlock periodReportPieBlock">
+                <h4 className="periodReportChartTitle">
+                  {labels.activityTypePieTitle}
+                </h4>
+                <p className="periodReportChartHint">
+                  {labels.activityTypePieHint}
+                </p>
+                <div className="periodReportChartPane periodReportChartPanePie">
+                  <div
+                    ref={activityTypeChartRef}
+                    className="periodReportPdfCapture"
+                  >
+                    <ActivityPieChart
+                      data={activityTypePieSegments}
+                      categoryOrder={activityTypeOrder}
+                      emptyHint={labels.activityTypePieEmpty}
+                    />
+                  </div>
+                </div>
+                <ChartLegend
+                  entries={activityTypeLegendEntries}
+                  viewLabel={labels.activityTypePieLegend}
+                />
+              </div>
+            )}
+
+            <div className="periodReportChartBlock periodReportPieBlock">
+              <h4 className="periodReportChartTitle">{labels.pieTitle}</h4>
+              <p className="periodReportChartHint">{labels.pieHint}</p>
+              <div className="periodReportChartPane periodReportChartPanePie">
+                <div ref={pieChartRef} className="periodReportPdfCapture">
+                  <ActivityPieChart
+                    data={pieSegments}
+                    categoryOrder={categoryOrder}
+                    emptyHint={labels.pieEmpty}
+                  />
+                </div>
+              </div>
+              <ChartLegend
+                entries={pieLegendEntries}
+                viewLabel={labels.pieLegend}
+              />
             </div>
           </div>
-          <ChartLegend
-            entries={activityTypeLegendEntries}
-            viewLabel={labels.activityTypePieLegend}
-          />
-        </div>
+
+          <div className="periodReportChartBlock">
+            <h4 className="periodReportChartTitle">{labels.timelineTitle}</h4>
+            <p className="periodReportChartHint">{labels.timelineHint}</p>
+            <div className="periodReportChartPane periodReportChartPaneTimeline">
+              <TimeSeriesChart
+                data={timeline}
+                categoryOrder={categoryOrder}
+                bucketSeconds={timelineBucketSeconds}
+                trimLeadingEmptyBuckets={trimLeadingEmptyBuckets}
+                plotCaptureRef={timelinePlotRef}
+                emptyHint={labels.timelineEmpty}
+              />
+            </div>
+            <ChartLegend
+              entries={timelineLegendEntries}
+              viewLabel={labels.timelineLegend}
+            />
+          </div>
+        </>
       )}
 
-      <div className="periodReportCharts">
-        <div className="periodReportChartBlock">
-          <h4 className="periodReportChartTitle">{labels.pieTitle}</h4>
-          <p className="periodReportChartHint">{labels.pieHint}</p>
-          <div className="periodReportChartPane">
-            <div ref={pieChartRef} className="periodReportPdfCapture">
-              <ActivityPieChart
-              data={pieSegments}
-              categoryOrder={categoryOrder}
-              emptyHint={labels.pieEmpty}
-            />
-            </div>
-          </div>
-          <ChartLegend entries={pieLegendEntries} viewLabel={labels.pieLegend} />
-        </div>
-        <div className="periodReportChartBlock">
-          <h4 className="periodReportChartTitle">{labels.timelineTitle}</h4>
-          <p className="periodReportChartHint">{labels.timelineHint}</p>
-          <div className="periodReportChartPane periodReportChartPaneTimeline">
-            <TimeSeriesChart
-              data={timeline}
-              categoryOrder={categoryOrder}
-              bucketSeconds={timelineBucketSeconds}
-              trimLeadingEmptyBuckets={trimLeadingEmptyBuckets}
-              plotCaptureRef={timelinePlotRef}
-              emptyHint={labels.timelineEmpty}
-            />
-          </div>
-          <ChartLegend
-            entries={timelineLegendEntries}
-            viewLabel={labels.timelineLegend}
-          />
-        </div>
-      </div>
-
-      <div className="periodReportActions">
-        <button
-          type="button"
-          title={labels.showInTableTitle}
-          onClick={onShowInTable}
-        >
-          {labels.showInTableLabel}
-        </button>
-        <button
-          type="button"
-          onClick={exportJson}
-          disabled={activeExport !== null}
-        >
-          {activeExport === "json" ? "Export…" : labels.exportJson}
-        </button>
-        <button type="button" onClick={exportCsv} disabled={activeExport !== null}>
-          {activeExport === "csv" ? "Export…" : labels.exportCsv}
-        </button>
-        <button type="button" onClick={exportPdf} disabled={activeExport !== null}>
-          {activeExport === "pdf" ? "Export…" : labels.exportPdf}
-        </button>
-      </div>
-
-      {exportMsg && <p className="periodReportExportMsg">{exportMsg}</p>}
     </div>
   );
 }
+
+// Memoized Export: Verhindert unnötige Re-Renders bei gleichen Props
+export const ReportBody = memo(ReportBodyInner);

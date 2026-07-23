@@ -8,7 +8,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ActivitiesPage, Activity, TableExportFilter } from "../types";
 import {
@@ -30,14 +30,12 @@ type Props = {
   projectId: number | null;
   projectName?: string | null;
   refreshKey: number;
-  /** Setzt Von/Bis-Filter von aussen (z. B. aus Tagesbericht). */
-  syncDateFilter?: { from: string; to: string } | null;
   /** Meldet aktuelle Filter an den Export (OverviewPanel). */
   onExportFilterChange?: (filter: TableExportFilter) => void;
 };
 
 const DEFAULT_PAGE_SIZE = 20;
-const PAGE_SIZE_OPTIONS = [10, 20, 35, 50, 70, 85, 100, 200] as const;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 75, 100] as const;
 
 function describeSortState(sorting: SortingState): string {
   const desc = sorting[0]?.desc ?? true;
@@ -61,7 +59,6 @@ export function ActivitiesTable({
   projectId,
   projectName = null,
   refreshKey,
-  syncDateFilter = null,
   onExportFilterChange,
 }: Props) {
   const [pagination, setPagination] = useState<PaginationState>({
@@ -91,13 +88,6 @@ export function ActivitiesTable({
     const timer = setTimeout(() => setDebouncedContext(contextQuery), 300);
     return () => clearTimeout(timer);
   }, [contextQuery]);
-
-  useEffect(() => {
-    if (syncDateFilter) {
-      setDateFrom(syncDateFilter.from);
-      setDateTo(syncDateFilter.to);
-    }
-  }, [syncDateFilter]);
 
   useEffect(() => {
     onExportFilterChange?.({
@@ -465,17 +455,23 @@ export function ActivitiesTable({
           </label>
           <button
             type="button"
+            className="activitiesPageNavBtn"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
+            aria-label="Zurück"
+            title="Zurück"
           >
-            Zurück
+            <AppIcon icon={ChevronLeft} size={18} />
           </button>
           <button
             type="button"
+            className="activitiesPageNavBtn"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
+            aria-label="Weiter"
+            title="Weiter"
           >
-            Weiter
+            <AppIcon icon={ChevronRight} size={18} />
           </button>
         </div>
       </div>

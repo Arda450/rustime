@@ -5,7 +5,7 @@
 //! als Parameter durchgereicht (z. B. über `TrackingState` in `stats.rs`).
 
 use crate::DbError;
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use rustime_core::models::WindowActivity;
 
 /// Eine Aktivität inkl. optionaler Projekt-Zuordnung.
@@ -23,6 +23,22 @@ pub struct ActivityWithProject {
     pub timestamp: u64,
     pub project_id: Option<i64>,
     pub project_name: Option<String>,
+    pub duration_seconds: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActivityOverviewSummary {
+    pub activity_count: i64,
+    pub total_active_seconds: u64,
+    pub today_active_seconds: u64,
+    pub active_days: i64,
+    pub first_activity_ts: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProjectActivityTotal {
+    pub name: String,
+    pub active_seconds: u64,
 }
 
 /// Filterkriterien für die paginierte Aktivitätstabelle.
@@ -41,18 +57,23 @@ pub struct ActivitiesFilter {
     pub context_query: Option<String>,
 }
 
-/// Schreibt eine erfasste Fensteraktivität in die Datenbank.
-///
-/// Wird vom Tracking-Polling (`tracking.rs`, alle ~2 s) aufgerufen, wenn ein
-/// aktives Projekt gesetzt ist. Es wird immer genau **eine** Zeile eingefügt.
-pub fn insert_activity_with_project(
+/// Schreibt den dominanten Fenstertitel eines Aggregationsfensters.
+pub fn insert_aggregated_activity_with_project(
     conn: &Connection,
     activity: &WindowActivity,
     project_id: i64,
+    duration_seconds: u64,
 ) -> Result<(), DbError> {
     conn.execute(
-        "INSERT INTO activities (window_title, timestamp, project_id) VALUES (?1, ?2, ?3)",
-        params![activity.title, activity.timestamp as i64, project_id],
+        "INSERT INTO activities
+            (window_title, timestamp, project_id, duration_seconds)
+         VALUES (?1, ?2, ?3, ?4)",
+        params![
+            activity.title,
+            activity.timestamp as i64,
+            project_id,
+            duration_seconds as i64
+        ],
     )?;
     Ok(())
 }
@@ -67,7 +88,7 @@ pub fn get_activities_with_projects(
     conn: &Connection,
 ) -> Result<Vec<ActivityWithProject>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT a.window_title, a.timestamp, a.project_id, p.name
+        "SELECT a.window_title, a.timestamp, a.project_id, p.name, a.duration_seconds
          FROM activities a
          LEFT JOIN projects p ON a.project_id = p.id
          ORDER BY a.timestamp DESC",
@@ -92,25 +113,66 @@ pub fn count_activities(conn: &Connection) -> Result<i64, DbError> {
     Ok(count)
 }
 
-/// Lädt **alle** Aktivitäten eines Projekts, **älteste zuerst** (`ASC`).
-///
-/// Wird für Pie- und Zeitverlauf-Charts verwendet – **nicht** für die Tabelle.
-pub fn get_activities_for_project_asc(
+/// Appweite Kennzahlen, vollständig in SQLite aggregiert.
+pub fn get_activity_overview_summary(
     conn: &Connection,
-    project_id: i64,
-) -> Result<Vec<ActivityWithProject>, DbError> {
-    let mut stmt = conn.prepare(
-        "SELECT a.window_title, a.timestamp, a.project_id, p.name
-         FROM activities a
-         LEFT JOIN projects p ON a.project_id = p.id
-         WHERE a.project_id = ?1
-         ORDER BY a.timestamp ASC",
+    today_start_ts: u64,
+) -> Result<ActivityOverviewSummary, DbError> {
+    let (count, first, active_days, total_seconds, today_seconds): (
+        i64,
+        Option<i64>,
+        i64,
+        i64,
+        i64,
+    ) = conn.query_row(
+        "SELECT COUNT(*),
+                MIN(timestamp),
+                COUNT(DISTINCT date(timestamp, 'unixepoch', 'localtime')),
+                COALESCE(SUM(duration_seconds), 0),
+                COALESCE(SUM(CASE WHEN timestamp >= ?1 THEN duration_seconds ELSE 0 END), 0)
+         FROM activities",
+        [today_start_ts as i64],
+        |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
+        },
     )?;
 
-    let rows = stmt
-        .query_map([project_id], map_activity_row)?
-        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ActivityOverviewSummary {
+        activity_count: count,
+        total_active_seconds: total_seconds.max(0) as u64,
+        today_active_seconds: today_seconds.max(0) as u64,
+        active_days,
+        first_activity_ts: first.map(|value| value.max(0) as u64),
+    })
+}
 
+/// Gesamte Sample-Zeit je Projekt, ohne Rohaktivitäten zu laden.
+pub fn get_project_activity_totals(
+    conn: &Connection,
+) -> Result<Vec<ProjectActivityTotal>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT COALESCE(p.name, 'Ohne Projekt'),
+                COALESCE(SUM(a.duration_seconds), 0) AS active_seconds
+         FROM activities a
+         LEFT JOIN projects p ON a.project_id = p.id
+         GROUP BY a.project_id, p.name
+         ORDER BY active_seconds DESC",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            let seconds: i64 = row.get(1)?;
+            Ok(ProjectActivityTotal {
+                name: row.get(0)?,
+                active_seconds: seconds.max(0) as u64,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(rows)
 }
 
@@ -122,7 +184,7 @@ pub fn get_activities_for_project_in_range(
     to_ts: u64,
 ) -> Result<Vec<ActivityWithProject>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT a.window_title, a.timestamp, a.project_id, p.name
+        "SELECT a.window_title, a.timestamp, a.project_id, p.name, a.duration_seconds
          FROM activities a
          LEFT JOIN projects p ON a.project_id = p.id
          WHERE a.project_id = ?1
@@ -132,10 +194,7 @@ pub fn get_activities_for_project_in_range(
     )?;
 
     let rows = stmt
-        .query_map(
-            (project_id, from_ts as i64, to_ts as i64),
-            map_activity_row,
-        )?
+        .query_map((project_id, from_ts as i64, to_ts as i64), map_activity_row)?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(rows)
@@ -158,6 +217,7 @@ fn map_activity_row(row: &rusqlite::Row<'_>) -> Result<ActivityWithProject, rusq
         timestamp: ts as u64,
         project_id: row.get(2)?,
         project_name: row.get(3)?,
+        duration_seconds: row.get::<_, i64>(4)?.max(0) as u64,
     })
 }
 
@@ -189,8 +249,9 @@ fn order_clause(sort_by: &str, sort_order: &str) -> &'static str {
     // ascending order, default ist absteigend
     let asc = matches!(sort_order.to_ascii_lowercase().as_str(), "asc");
     match sort_by {
-        "context" | "title" => { // context oder title sortieren
-            if asc { 
+        "context" | "title" => {
+            // context oder title sortieren
+            if asc {
                 "ORDER BY a.window_title ASC"
             } else {
                 "ORDER BY a.window_title DESC"
@@ -250,7 +311,7 @@ pub fn get_activities_page(
 
     // --- Query 2: eine Seite laden ---
     let select_sql = format!(
-        "SELECT a.window_title, a.timestamp, a.project_id, p.name
+        "SELECT a.window_title, a.timestamp, a.project_id, p.name, a.duration_seconds
          FROM activities a
          LEFT JOIN projects p ON a.project_id = p.id
          {FILTER_WHERE}
@@ -283,7 +344,7 @@ pub fn get_activities_filtered(
     let context = normalized_context_query(filter.context_query.clone());
 
     let select_sql = format!(
-        "SELECT a.window_title, a.timestamp, a.project_id, p.name
+        "SELECT a.window_title, a.timestamp, a.project_id, p.name, a.duration_seconds
          FROM activities a
          LEFT JOIN projects p ON a.project_id = p.id
          {FILTER_WHERE}

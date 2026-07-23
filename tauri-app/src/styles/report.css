@@ -10,6 +10,7 @@
 }
 
 .periodReportNav {
+  /* outline: 1px solid red; */
   display: flex;
   align-items: flex-end;
   gap: 8px;
@@ -20,28 +21,38 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 44px;
   padding: 0;
   border-radius: 6px;
+  flex-shrink: 0;
 }
 
 .periodReportTodayBtn {
-  min-height: 36px;
-  padding: 0 12px;
-  font-size: 0.85rem;
+  min-height: 44px;
+  padding: 0 16px;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  width: auto;
 }
 
 .periodReportDateField {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  flex: 1;
+  gap: 3px;
+  flex: 1 1 auto;
   min-width: 160px;
 }
 
+.periodReportDateField .appDateInput {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
 .periodReportDateLabel {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--muted);
   font-weight: 600;
 }
@@ -106,6 +117,15 @@
 
 .periodReportProjects {
   margin-top: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.periodReportChartPaneProjects {
+  min-height: 100px;
+  width: 100%;
 }
 
 .periodReportBarList {
@@ -165,11 +185,19 @@
   text-align: right;
 }
 
-.periodReportCharts {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  overflow: visible;
+/* Beide Pie-Charts nebeneinander; bei wenig Platz untereinander */
+.periodReportPieRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.periodReportPieBlock {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 .periodReportChartBlock {
@@ -205,10 +233,55 @@
   max-width: 280px;
 }
 
-.periodReportChartPaneActivityType {
-  min-height: clamp(240px, 32vh, 360px);
+/* Pie-Charts für die Nebeneinander-Anordnung */
+.periodReportChartPanePie {
+  min-height: 0;
   width: 100%;
-  max-width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.periodReportChartPanePie .pieChartPlot {
+  height: 300px;
+  min-height: 300px;
+  max-width: 400px;
+}
+
+.periodReportPieBlock .chartLegend {
+  border: none;
+  background: none;
+  padding: 4px 8px 0;
+}
+
+.periodReportPieBlock .chartLegendHint {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+}
+
+/* Einspaltig gestapelt: Labels bekommen die volle Breite und werden
+   nicht mehr abgeschnitten. Etwas horizontaler Abstand zu den Rändern. */
+.periodReportPieBlock .chartLegendList {
+  padding: 0 8px;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.periodReportPieBlock .chartLegendLabel {
+  font-size: 0.82rem;
+}
+
+.periodReportPieBlock .chartLegendMeta {
+  font-size: 0.78rem;
+}
+
+/* Schmalere Bildschirme: Legende kleiner, damit alles reinpasst */
+@media (max-width: 700px) {
+  .periodReportPieBlock .chartLegendLabel {
+    font-size: 0.76rem;
+  }
+  .periodReportPieBlock .chartLegendMeta {
+    font-size: 0.72rem;
+  }
 }
 
 .periodReportChartPaneTimeline {
@@ -219,33 +292,45 @@
   overflow: visible;
 }
 
-.periodReportActivityTypeChart {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-}
-
-.periodReportActivityTypeChart .pieChartPlot {
-  max-width: 100%;
-  height: min(420px, 48vh);
-  min-height: clamp(240px, 32vh, 360px);
-}
-
 .periodReportActions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-.periodReportExportMsg {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--muted);
-  word-break: break-all;
+/* Gleiche Grösse wie die Download-Buttons in den erfassten Fenstern
+   (.overviewExportActions button): gleichmässig breit, umbrechend. */
+.periodReportActionBtn {
+  flex: 1 1 0;
+  min-width: 150px;
+  min-height: 38px;
+  padding: 0.45rem 1rem;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  white-space: normal;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Schmalere Bildschirme: Schrift/Padding reduzieren, damit der Text
+   nicht aus den Buttons ragt. */
+@media (max-width: 900px) {
+  .periodReportActionBtn {
+    min-width: 120px;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.82rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .periodReportActionBtn {
+    min-width: 110px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.76rem;
+  }
 }
 
 .periodReportContent {

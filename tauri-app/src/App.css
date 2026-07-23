@@ -13,7 +13,8 @@
 @import "./styles/layout.css"; /* Gemeinsame Section-Layouts (.container) */
 @import "./styles/overview.css"; /* OverviewPanel.tsx */
 @import "./styles/settings.css"; /* SettingsPanel.tsx */
-@import "./styles/projects.css"; /* ProjectsPanel.tsx (Projektzeilen) */
 @import "./styles/activities-table.css"; /* ActivitiesTable.tsx */
 @import "./styles/charts.css"; /* PieChart, TimeSeriesChart, ChartLegend, ChartTooltip, OverviewPanel Charts */
 @import "./styles/report.css"; /* Tages- und Wochenberichte */
+@import "./styles/dialog.css"; /* Bestätigungsdialog (ConfirmDialog.tsx) */
+@import "./styles/toast.css"; /* Toast-Meldungen (ToastProvider) */

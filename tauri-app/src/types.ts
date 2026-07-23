@@ -27,6 +27,19 @@ export type CategoryTimeSeriesPoint = {
   categories: { name: string; value: number }[];
 };
 
+export type OverviewStats = {
+  from_ts: number;
+  to_ts: number;
+  activity_count: number;
+  project_count: number;
+  total_active_seconds: number;
+  today_active_seconds: number;
+  active_days: number;
+  first_activity_ts: number | null;
+  by_project: DwellSegment[];
+  timeline: CategoryTimeSeriesPoint[];
+};
+
 /** Gemeinsame Felder von Tages- und Wochenbericht. */
 export type ReportCore = {
   project_name: string | null;

@@ -107,6 +107,31 @@ pub fn dwell_by_category_in_range(
     finalize_dwell_segments(totals, options.top_n)
 }
 
+/// Verweildauer pro Projekt für einen begrenzten Zeitraum.
+///
+/// Erwartet Aktivitäten aller Projekte, aufsteigend nach Zeit sortiert.
+pub fn dwell_by_project_in_range(
+    rows: &[ActivityWithProject],
+    options: DwellOptions,
+    from_ts: u64,
+    to_ts: u64,
+) -> Vec<DwellSegment> {
+    if rows.is_empty() || to_ts <= from_ts {
+        return Vec::new();
+    }
+
+    let mut totals: HashMap<String, u64> = HashMap::new();
+    for seg in build_project_segments(rows, options.max_segment_gap_seconds, options.tail_seconds) {
+        let clip_start = seg.start_ts.max(from_ts);
+        let clip_end = seg.end_ts.min(to_ts);
+        if clip_end > clip_start {
+            *totals.entry(seg.category).or_insert(0) += clip_end - clip_start;
+        }
+    }
+
+    finalize_dwell_segments(totals, options.top_n)
+}
+
 /// Wie `dwell_by_category_in_range`, aber nach Roh-Fenstertitel statt Kategorie.
 pub fn dwell_by_title_in_range(
     rows: &[ActivityWithProject],
@@ -136,42 +161,16 @@ fn build_title_segments(
     max_segment_gap_seconds: u64,
     tail_seconds: u64,
 ) -> Vec<TitleSegment> {
-    if rows.is_empty() {
-        return Vec::new();
-    }
-
-    let mut out = Vec::with_capacity(rows.len());
-
-    if rows.len() == 1 {
-        out.push(TitleSegment {
-            start_ts: rows[0].timestamp,
-            end_ts: rows[0].timestamp.saturating_add(tail_seconds),
-            title: rows[0].title.clone(),
-        });
-        return out;
-    }
-
-    for i in 0..rows.len() - 1 {
-        let start = rows[i].timestamp;
-        let raw_delta = rows[i + 1].timestamp.saturating_sub(start);
-        let delta = raw_delta.min(max_segment_gap_seconds);
-        let end = start.saturating_add(delta);
-
-        out.push(TitleSegment {
-            start_ts: start,
-            end_ts: end,
-            title: rows[i].title.clone(),
-        });
-    }
-
-    let last = &rows[rows.len() - 1];
-    out.push(TitleSegment {
-        start_ts: last.timestamp,
-        end_ts: last.timestamp.saturating_add(tail_seconds),
-        title: last.title.clone(),
-    });
-
-    out
+    rows.iter()
+        .map(|row| {
+            let duration = explicit_duration(row, max_segment_gap_seconds, tail_seconds);
+            TitleSegment {
+                start_ts: row.timestamp,
+                end_ts: row.timestamp.saturating_add(duration),
+                title: row.title.clone(),
+            }
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone)]
@@ -181,10 +180,7 @@ struct TitleSegment {
     title: String,
 }
 
-fn finalize_dwell_segments(
-    totals: HashMap<String, u64>,
-    top_n: usize,
-) -> Vec<DwellSegment> {
+fn finalize_dwell_segments(totals: HashMap<String, u64>, top_n: usize) -> Vec<DwellSegment> {
     let mut segments: Vec<DwellSegment> = totals
         .into_iter()
         .filter(|(_, v)| *v > 0)
@@ -197,10 +193,7 @@ fn finalize_dwell_segments(
     segments.sort_by(|a, b| b.value_seconds.cmp(&a.value_seconds));
 
     if top_n > 0 && segments.len() > top_n {
-        let rest_sum: u64 = segments[top_n..]
-            .iter()
-            .map(|s| s.value_seconds)
-            .sum();
+        let rest_sum: u64 = segments[top_n..].iter().map(|s| s.value_seconds).sum();
         segments.truncate(top_n);
         if rest_sum > 0 {
             segments.push(DwellSegment {
@@ -257,6 +250,44 @@ pub fn dwell_time_series_by_category(
         .collect()
 }
 
+/// Zeitverlauf pro Projekt über Buckets.
+///
+/// Die Rückgabe enthält nur aggregierte Projektwerte, niemals Rohaktivitäten.
+pub fn dwell_time_series_by_project(
+    rows: &[ActivityWithProject],
+    options: TimeSeriesOptions,
+) -> Vec<CategoryTimeSeriesPoint> {
+    if !is_valid_timeseries_options(options) {
+        return Vec::new();
+    }
+
+    let from_ts = effective_from_ts(options, rows);
+    let bucket_starts: Vec<u64> =
+        prefill_buckets(from_ts, options.to_ts, options.bucket_seconds, false)
+            .into_keys()
+            .collect();
+    let mut buckets: BTreeMap<u64, HashMap<String, u64>> = bucket_starts
+        .into_iter()
+        .map(|ts| (ts, HashMap::new()))
+        .collect();
+
+    for seg in build_project_segments(rows, options.max_segment_gap_seconds, options.tail_seconds) {
+        add_segment_to_category_buckets(&mut buckets, &seg, options);
+    }
+
+    buckets
+        .into_iter()
+        .map(|(bucket_start_ts, categories)| {
+            let mut by_category: Vec<(String, u64)> = categories.into_iter().collect();
+            by_category.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+            CategoryTimeSeriesPoint {
+                bucket_start_ts,
+                by_category,
+            }
+        })
+        .collect()
+}
+
 /// Linker Rand des Charts: ab erstem Aktivitäts-Bucket, aber nicht vor `from_ts` (Maximal-Fenster).
 fn effective_from_ts(options: TimeSeriesOptions, rows: &[ActivityWithProject]) -> u64 {
     if options.align_to_range_start {
@@ -265,8 +296,7 @@ fn effective_from_ts(options: TimeSeriesOptions, rows: &[ActivityWithProject]) -
     if rows.is_empty() {
         return options.from_ts;
     }
-    let first_bucket =
-        (rows[0].timestamp / options.bucket_seconds) * options.bucket_seconds;
+    let first_bucket = (rows[0].timestamp / options.bucket_seconds) * options.bucket_seconds;
     first_bucket.max(options.from_ts)
 }
 
@@ -281,43 +311,51 @@ fn build_segments(
     max_segment_gap_seconds: u64,
     tail_seconds: u64,
 ) -> Vec<Segment> {
-    if rows.is_empty() {
-        return Vec::new();
-    }
+    rows.iter()
+        .map(|row| {
+            let duration = explicit_duration(row, max_segment_gap_seconds, tail_seconds);
+            Segment {
+                start_ts: row.timestamp,
+                end_ts: row.timestamp.saturating_add(duration),
+                category: format_app_label_from_title(&row.title),
+            }
+        })
+        .collect()
+}
 
-    let mut out = Vec::with_capacity(rows.len());
+fn build_project_segments(
+    rows: &[ActivityWithProject],
+    max_segment_gap_seconds: u64,
+    tail_seconds: u64,
+) -> Vec<Segment> {
+    let project_label = |row: &ActivityWithProject| {
+        row.project_name
+            .clone()
+            .unwrap_or_else(|| "Ohne Projekt".to_string())
+    };
+    rows.iter()
+        .map(|row| {
+            let duration = explicit_duration(row, max_segment_gap_seconds, tail_seconds);
+            Segment {
+                start_ts: row.timestamp,
+                end_ts: row.timestamp.saturating_add(duration),
+                category: project_label(row),
+            }
+        })
+        .collect()
+}
 
-    if rows.len() == 1 {
-        let cat = format_app_label_from_title(&rows[0].title);
-        out.push(Segment {
-            start_ts: rows[0].timestamp,
-            end_ts: rows[0].timestamp.saturating_add(tail_seconds),
-            category: cat,
-        });
-        return out;
-    }
-
-    for i in 0..rows.len() - 1 {
-        let start = rows[i].timestamp;
-        let raw_delta = rows[i + 1].timestamp.saturating_sub(start);
-        let delta = raw_delta.min(max_segment_gap_seconds);
-        let end = start.saturating_add(delta);
-
-        out.push(Segment {
-            start_ts: start,
-            end_ts: end,
-            category: format_app_label_from_title(&rows[i].title),
-        });
-    }
-
-    let last = &rows[rows.len() - 1];
-    out.push(Segment {
-        start_ts: last.timestamp,
-        end_ts: last.timestamp.saturating_add(tail_seconds),
-        category: format_app_label_from_title(&last.title),
-    });
-
-    out
+fn explicit_duration(
+    row: &ActivityWithProject,
+    max_segment_gap_seconds: u64,
+    fallback_seconds: u64,
+) -> u64 {
+    let duration = if row.duration_seconds > 0 {
+        row.duration_seconds
+    } else {
+        fallback_seconds
+    };
+    duration.min(max_segment_gap_seconds)
 }
 
 fn uses_calendar_day_buckets(options: TimeSeriesOptions) -> bool {

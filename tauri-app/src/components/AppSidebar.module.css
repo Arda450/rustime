@@ -1,0 +1,237 @@
+/**
+ * AppSidebar.module.css – Linke Navigationssäule
+ * Komponente: AppSidebar.tsx
+ */
+
+.Sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-strong);
+  box-sizing: border-box;
+  min-height: 0;
+  overflow: auto;
+}
+
+.Logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  margin: 0 0 8px 4px;
+}
+
+.NavItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+}
+
+.NavItem:hover {
+  filter: brightness(1.06);
+}
+
+.NavItemActive {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, var(--text) 8%);
+}
+
+.Divider {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.ProjectList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  align-items: flex-start;
+}
+
+.ProjectHeader {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 0 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.EditButton {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.EditButton:hover,
+.EditButtonActive {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.ProjectRow {
+  display: flex;
+  width: 100%;
+  gap: 4px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid transparent;
+}
+
+.ProjectRow:hover {
+  filter: brightness(1.05);
+}
+
+.ProjectRowActive {
+  background: color-mix(in srgb, var(--danger) 55%, #1a1010);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+
+.ProjectRowSelected,
+.ProjectRowActive.ProjectRowSelected {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  border-color: var(--accent);
+}
+
+.ProjectButton {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 8px 8px 6px;
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ProjectIcon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+.ProjectRowActive .ProjectIcon {
+  background: transparent;
+  border-color: transparent;
+}
+
+.SelectionIcon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.ProjectName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.EditActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.EditActions button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 8px;
+  font-size: 0.78rem;
+}
+
+.CancelEditButton {
+  color: var(--muted);
+}
+
+.DeleteSelectedButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+}
+
+.DeleteSelectedButton:not(:disabled):hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--danger) 20%, var(--surface));
+}
+
+.NewProject {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 8px 8px 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.NewProject:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.NewProject:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.Error {
+  margin: 0;
+  padding: 0 8px;
+  color: var(--danger);
+  font-size: 0.85rem;
+}

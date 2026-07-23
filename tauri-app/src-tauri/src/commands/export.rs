@@ -10,9 +10,8 @@ use chrono::{Local, TimeZone, Utc};
 use tauri::State;
 
 use crate::dto::export::{
-    ExportActivity, ExportAggregated, ExportAggregatedActivityTypeRow,
-    ExportAggregatedCategoryRow, ExportAggregatedProjectRow, ExportCsvResultDto, ExportMeta,
-    ExportPayload,
+    ExportActivity, ExportAggregated, ExportAggregatedActivityTypeRow, ExportAggregatedCategoryRow,
+    ExportAggregatedProjectRow, ExportCsvResultDto, ExportMeta, ExportPayload,
 };
 use crate::error::ApiError;
 
@@ -112,9 +111,7 @@ fn compute_aggregated(rows: &[ActivityWithProject], filter: &ActivitiesFilter) -
     let mut by_project_category: Vec<ExportAggregatedCategoryRow> = Vec::new();
 
     for (project_id, project_rows) in by_project {
-        let project_name = project_rows
-            .first()
-            .and_then(|r| r.project_name.clone());
+        let project_name = project_rows.first().and_then(|r| r.project_name.clone());
 
         let segments = dwell_segments_for_rows(&project_rows, filter.from_ts, filter.to_ts);
 
@@ -132,13 +129,11 @@ fn compute_aggregated(rows: &[ActivityWithProject], filter: &ActivitiesFilter) -
     }
 
     by_project_category.sort_by(|a, b| {
-        b.active_seconds
-            .cmp(&a.active_seconds)
-            .then_with(|| {
-                a.project_name
-                    .cmp(&b.project_name)
-                    .then_with(|| a.category.cmp(&b.category))
-            })
+        b.active_seconds.cmp(&a.active_seconds).then_with(|| {
+            a.project_name
+                .cmp(&b.project_name)
+                .then_with(|| a.category.cmp(&b.category))
+        })
     });
 
     let mut project_totals: HashMap<Option<i64>, (Option<String>, u64)> = HashMap::new();
@@ -151,11 +146,13 @@ fn compute_aggregated(rows: &[ActivityWithProject], filter: &ActivitiesFilter) -
 
     let mut by_project_summary: Vec<ExportAggregatedProjectRow> = project_totals
         .into_iter()
-        .map(|(project_id, (project_name, active_seconds))| ExportAggregatedProjectRow {
-            project_id,
-            project_name,
-            active_seconds,
-        })
+        .map(
+            |(project_id, (project_name, active_seconds))| ExportAggregatedProjectRow {
+                project_id,
+                project_name,
+                active_seconds,
+            },
+        )
         .collect();
 
     by_project_summary.sort_by(|a, b| {
@@ -239,9 +236,15 @@ fn load_filtered_activities(
     get_activities_filtered(&db_conn, &req.filter).map_err(ApiError::from)
 }
 
-fn download_dir() -> Result<PathBuf, ApiError> {
-    dirs::download_dir()
-        .ok_or_else(|| ApiError::new("DOWNLOAD_DIR_NOT_FOUND", "Download-Ordner nicht gefunden"))
+fn parse_target_path(path: &str) -> Result<PathBuf, ApiError> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err(ApiError::new(
+            "EXPORT_EMPTY_PATH",
+            "Kein Speicherpfad angegeben.",
+        ));
+    }
+    Ok(PathBuf::from(trimmed))
 }
 
 fn escape_csv_field(value: &str) -> String {
@@ -292,10 +295,7 @@ fn build_samples_csv(activities: &[ExportActivity]) -> String {
 
     for a in activities {
         let project_name = a.project_name.as_deref().unwrap_or("");
-        let project_id = a
-            .project_id
-            .map(|id| id.to_string())
-            .unwrap_or_default();
+        let project_id = a.project_id.map(|id| id.to_string()).unwrap_or_default();
 
         lines.push(format!(
             "{};{};{};{};{};{};{};{}",
@@ -314,16 +314,11 @@ fn build_samples_csv(activities: &[ExportActivity]) -> String {
 }
 
 fn build_aggregated_csv(aggregated: &ExportAggregated) -> String {
-    let mut lines = vec![
-        "projekt;projekt_id;kategorie;aktiv_sekunden;aktiv_lesbar".to_string(),
-    ];
+    let mut lines = vec!["projekt;projekt_id;kategorie;aktiv_sekunden;aktiv_lesbar".to_string()];
 
     for row in &aggregated.by_project_category {
         let project_name = row.project_name.as_deref().unwrap_or("");
-        let project_id = row
-            .project_id
-            .map(|id| id.to_string())
-            .unwrap_or_default();
+        let project_id = row.project_id.map(|id| id.to_string()).unwrap_or_default();
 
         lines.push(format!(
             "{};{};{};{};{}",
@@ -340,10 +335,7 @@ fn build_aggregated_csv(aggregated: &ExportAggregated) -> String {
 
     for row in &aggregated.by_project {
         let project_name = row.project_name.as_deref().unwrap_or("");
-        let project_id = row
-            .project_id
-            .map(|id| id.to_string())
-            .unwrap_or_default();
+        let project_id = row.project_id.map(|id| id.to_string()).unwrap_or_default();
 
         lines.push(format!(
             "{};{};{};{}",
@@ -401,19 +393,18 @@ pub fn show_activities_json(
 }
 
 #[tauri::command]
-pub fn export_activities_json_to_downloads(
+pub fn export_activities_json_to_path(
     state: State<TrackingState>,
     project_id: Option<i64>,
     from_ts: Option<u64>,
     to_ts: Option<u64>,
     context_query: Option<String>,
+    target_path: String,
 ) -> Result<String, ApiError> {
+    let out_path = parse_target_path(&target_path)?;
     let req = export_params(project_id, from_ts, to_ts, context_query);
     let rows = load_filtered_activities(&state, &req)?;
     let payload = build_payload(rows, &req);
-
-    let file_name = format!("rustime-export-{}.json", current_timestamp());
-    let out_path = download_dir()?.join(file_name);
 
     let pretty = serde_json::to_string_pretty(&payload)
         .map_err(|e| ApiError::new("JSON_SERIALIZE_FAILED", e.to_string()))?;
@@ -425,35 +416,41 @@ pub fn export_activities_json_to_downloads(
 }
 
 #[tauri::command]
-pub fn export_activities_csv_to_downloads(
+pub fn export_activities_csv_to_paths(
     state: State<TrackingState>,
     project_id: Option<i64>,
     from_ts: Option<u64>,
     to_ts: Option<u64>,
     context_query: Option<String>,
+    samples_path: String,
+    aggregated_path: String,
 ) -> Result<ExportCsvResultDto, ApiError> {
+    let samples_out = parse_target_path(&samples_path)?;
+    let aggregated_out = parse_target_path(&aggregated_path)?;
     let req = export_params(project_id, from_ts, to_ts, context_query);
     let rows = load_filtered_activities(&state, &req)?;
     let payload = build_payload(rows, &req);
 
-    let ts = current_timestamp();
-    let samples_path = download_dir()?.join(format!("rustime-samples-{ts}.csv"));
-    let aggregated_path = download_dir()?.join(format!("rustime-aggregated-{ts}.csv"));
-
     let mut samples = payload.activities;
     samples.sort_by_key(|a| a.timestamp);
 
-    write_csv_with_bom(&samples_path, &build_samples_csv(&samples))?;
-    write_csv_with_bom(&aggregated_path, &build_aggregated_csv(&payload.aggregated))?;
+    write_csv_with_bom(&samples_out, &build_samples_csv(&samples))?;
+    write_csv_with_bom(
+        &aggregated_out,
+        &build_aggregated_csv(&payload.aggregated),
+    )?;
 
     Ok(ExportCsvResultDto {
-        samples_path: samples_path.to_string_lossy().to_string(),
-        aggregated_path: aggregated_path.to_string_lossy().to_string(),
+        samples_path: samples_out.to_string_lossy().to_string(),
+        aggregated_path: aggregated_out.to_string_lossy().to_string(),
     })
 }
 
 #[tauri::command]
-pub fn export_report_pdf_to_downloads(pdf_bytes: Vec<u8>) -> Result<String, ApiError> {
+pub fn export_report_pdf_to_path(
+    pdf_bytes: Vec<u8>,
+    target_path: String,
+) -> Result<String, ApiError> {
     if pdf_bytes.is_empty() {
         return Err(ApiError::new(
             "EXPORT_EMPTY_PDF",
@@ -461,8 +458,7 @@ pub fn export_report_pdf_to_downloads(pdf_bytes: Vec<u8>) -> Result<String, ApiE
         ));
     }
 
-    let file_name = format!("rustime-bericht-{}.pdf", current_timestamp());
-    let out_path = download_dir()?.join(file_name);
+    let out_path = parse_target_path(&target_path)?;
 
     std::fs::write(&out_path, pdf_bytes)
         .map_err(|e| ApiError::new("EXPORT_WRITE_FAILED", e.to_string()))?;

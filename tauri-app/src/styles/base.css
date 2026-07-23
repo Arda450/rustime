@@ -34,14 +34,3 @@ body {
   flex-shrink: 0;
   display: block;
 }
-
-/* --- App.tsx: Logo oben links --- */
-.appLogo {
-  width: 55px;
-  height: 55px;
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  object-fit: contain;
-  margin-bottom: 20px;
-}

@@ -41,6 +41,38 @@ export function formatTimeSeriesAxisLabel(
   return `${hh}:${mm}`;
 }
 
+export type TimeSeriesValueUnit = {
+  /** Sekunden in den Anzeigewert umrechnen (auf 2 Nachkommastellen gerundet). */
+  secondsToValue: (seconds: number) => number;
+  /** Anzeigewert zurück in Sekunden (für Tooltip/Dauerformatierung). */
+  valueToSeconds: (value: number) => number;
+  /** Beschriftung der Y-Achse. */
+  axisLabel: string;
+  /** Einheit für Fliesstext/Caption. */
+  captionUnit: string;
+};
+
+/**
+ * Wählt die Anzeige-Einheit passend zur Bucket-Grösse.
+ * Tages-Buckets (Wochenbericht) → Stunden, sonst Minuten (lesbarer).
+ */
+export function timeSeriesValueUnit(bucketSeconds: number): TimeSeriesValueUnit {
+  if (bucketSeconds >= SECONDS_PER_DAY) {
+    return {
+      secondsToValue: (s) => Math.round((s / 3_600) * 100) / 100,
+      valueToSeconds: (v) => v * 3_600,
+      axisLabel: "Std / Fenster",
+      captionUnit: "Stunden",
+    };
+  }
+  return {
+    secondsToValue: (s) => Math.round((s / 60) * 100) / 100,
+    valueToSeconds: (v) => v * 60,
+    axisLabel: "Min / Fenster",
+    captionUnit: "Minuten",
+  };
+}
+
 /** Tooltip-Titel passend zum Bucket-Typ. */
 export function formatTimeSeriesTooltipTitle(
   ts: number,

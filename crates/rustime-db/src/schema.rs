@@ -43,10 +43,26 @@ fn apply_schema(conn: &Connection) -> Result<(), DbError> {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             window_title TEXT NOT NULL,
             timestamp INTEGER NOT NULL,
-            project_id INTEGER REFERENCES projects(id)
+            project_id INTEGER REFERENCES projects(id),
+            duration_seconds INTEGER NOT NULL DEFAULT 2
         )",
         [],
     )?;
+
+    let has_duration = {
+        let mut stmt = conn.prepare("PRAGMA table_info(activities)")?;
+        let columns = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<Vec<_>, _>>()?;
+        columns.iter().any(|name| name == "duration_seconds")
+    };
+    if !has_duration {
+        conn.execute(
+            "ALTER TABLE activities
+             ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 2",
+            [],
+        )?;
+    }
 
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_activities_timestamp ON activities(timestamp)",

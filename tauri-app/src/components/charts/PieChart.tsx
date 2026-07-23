@@ -7,6 +7,7 @@ import {
   Sector,
   Tooltip,
 } from "recharts";
+import { memo, useCallback, useMemo } from "react";
 import { formatDurationSeconds } from "../../utils/formatDuration";
 import { colorForCategory } from "../../utils/chartColors";
 import { pieTooltipProps } from "./ChartTooltip";
@@ -59,12 +60,22 @@ type Props = {
   emptyHint?: string;
 };
 
-export default function ActivityPieChart({
+function ActivityPieChartInner({
   data,
   categoryOrder,
   isAnimationActive = false,
   emptyHint = "Keine Daten für dieses Projekt.",
 }: Props) {
+  // Memoize: Shape-Funktion nur bei geänderter categoryOrder neu erstellen
+  const pieShape = useMemo(() => makePieShape(categoryOrder), [categoryOrder]);
+
+  // Memoize: Tooltip-Formatter
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tooltipFormatter = useCallback((value: any) => {
+    const numericValue = typeof value === "number" ? value : Number(value ?? 0);
+    return formatDurationSeconds(numericValue);
+  }, []);
+
   if (data.length === 0) {
     return (
       <p style={{ color: "var(--muted)", fontStyle: "italic", marginTop: 8 }}>
@@ -73,20 +84,11 @@ export default function ActivityPieChart({
     );
   }
 
-  const pieShape = makePieShape(categoryOrder);
-
   return (
     <div className="pieChartPlot">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
-          <Tooltip
-            {...pieTooltipProps}
-            formatter={(value) => {
-              const numericValue =
-                typeof value === "number" ? value : Number(value ?? 0);
-              return formatDurationSeconds(numericValue);
-            }}
-          />
+          <Tooltip {...pieTooltipProps} formatter={tooltipFormatter} />
           <Pie
             data={data}
             nameKey="name"
@@ -102,3 +104,7 @@ export default function ActivityPieChart({
     </div>
   );
 }
+
+// Memoized Export: Verhindert unnötige Re-Renders bei gleichen Props
+const ActivityPieChart = memo(ActivityPieChartInner);
+export default ActivityPieChart;

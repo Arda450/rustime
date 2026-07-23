@@ -107,8 +107,8 @@ export function formatWeekRange(weekStart: string, weekEnd: string): string {
 export function formatWeekLabel(anchorIso: string): string {
   const start = weekStartIso(anchorIso);
   const end = weekEndIso(anchorIso);
-  const effectiveEnd = clampWeekEndToToday(end);
-  return `KW ${isoWeekNumber(start)} · ${formatWeekRange(start, effectiveEnd)}`;
+  // Ganze Kalenderwoche Mo–So anzeigen (konsistent zum Zeitverlauf).
+  return `KW ${isoWeekNumber(start)} · ${formatWeekRange(start, end)}`;
 }
 
 export function isCurrentWeek(anchorIso: string): boolean {

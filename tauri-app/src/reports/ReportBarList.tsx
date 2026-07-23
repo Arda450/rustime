@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { DwellSegment } from "../types";
 import { formatDurationSeconds } from "../utils/formatDuration";
 
@@ -7,7 +8,7 @@ type Props = {
   formatLabel?: (name: string) => string;
 };
 
-export function ReportBarList({
+function ReportBarListInner({
   items,
   highlightName = null,
   formatLabel = (name) => name,
@@ -50,3 +51,5 @@ export function ReportBarList({
     </ul>
   );
 }
+
+export const ReportBarList = memo(ReportBarListInner);

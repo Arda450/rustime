@@ -1,0 +1,91 @@
+/**
+ * toast.css – Kurzlebige Erfolgs-/Fehlermeldungen
+ * Komponenten: ToastProvider / ToastViewport
+ */
+
+.toastViewport {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.toastItem {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-strong);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  animation: toastIn 180ms ease-out;
+}
+
+.toastItem--success {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.toastItem--error {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
+}
+
+.toastBody {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toastMessage {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.toastDetail {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.toastDismiss {
+  width: auto;
+  min-height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  flex: 0 0 auto;
+}
+
+.toastDismiss:not(:disabled):hover {
+  color: var(--text);
+  filter: none;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

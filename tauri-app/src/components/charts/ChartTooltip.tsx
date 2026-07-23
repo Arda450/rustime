@@ -3,6 +3,7 @@ import { chartTooltipStyle } from "../../utils/chartColors";
 import {
   formatTimeSeriesTooltipTitle,
   SECONDS_PER_DAY,
+  timeSeriesValueUnit,
 } from "../../utils/timeSeriesBuckets";
 
 export type TimeSeriesTooltipBodyProps = {
@@ -38,6 +39,8 @@ export function TimeSeriesTooltipBody({
       ? `Tag: ${formatTimeSeriesTooltipTitle(rowTs, bucketSeconds)}`
       : `Zeitfenster: ${label}`;
 
+  const unit = timeSeriesValueUnit(bucketSeconds);
+
   return (
     <div className="chartTooltip" style={chartTooltipStyle.contentStyle}>
       <p className="chartTooltipTitle">{titleText}</p>
@@ -51,7 +54,9 @@ export function TimeSeriesTooltipBody({
             />
             <span className="chartTooltipName">{entry.name}</span>
             <span className="chartTooltipValue">
-              {formatDurationSeconds(Number(entry.value ?? 0) * 60)}
+              {formatDurationSeconds(
+                unit.valueToSeconds(Number(entry.value ?? 0)),
+              )}
             </span>
           </li>
         ))}
@@ -66,4 +71,5 @@ export const pieTooltipProps = {
   contentStyle: chartTooltipStyle.contentStyle,
   wrapperStyle: chartTooltipStyle.wrapperStyle,
   itemStyle: chartTooltipStyle.itemStyle,
+  labelStyle: chartTooltipStyle.labelStyle,
 } as const;

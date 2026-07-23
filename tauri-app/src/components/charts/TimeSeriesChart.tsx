@@ -6,16 +6,24 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useRef, type RefObject } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import type { CategoryTimeSeriesPoint } from "../../types";
 import { colorForCategory } from "../../utils/chartColors";
 import {
   formatBucketLabel,
   formatTimeSeriesAxisLabel,
+  timeSeriesValueUnit,
+  type TimeSeriesValueUnit,
 } from "../../utils/timeSeriesBuckets";
-import {
-  type TimeSeriesTooltipBodyProps,
-} from "./ChartTooltip";
+import { type TimeSeriesTooltipBodyProps } from "./ChartTooltip";
 import { TimeSeriesTooltipPortal } from "./TimeSeriesTooltipPortal";
 
 type Props = {
@@ -38,10 +46,6 @@ type ChartRow = {
 /** Mindestbreite pro Bucket für horizontalen Scroll (Detailansicht). */
 const PX_PER_BUCKET = 32;
 const CHART_HEIGHT = 420;
-
-function secondsToMinutes(seconds: number): number {
-  return Math.round((seconds / 60) * 100) / 100;
-}
 
 export function resolveCategoryNames(
   data: CategoryTimeSeriesPoint[],
@@ -70,10 +74,27 @@ export function trimLeadingEmptyBuckets(
   return data.slice(firstWithActivity);
 }
 
+/**
+ * Hängt einen leeren Abschluss-Bucket an (Grenze nach dem letzten Fenster).
+ * Nötig, weil `stepAfter` die Stufe bis zum Folgepunkt zeichnet,sonst
+ * bekommt der letzte Tag/das letzte Fenster (z. B. Sonntag) keine volle Spalte.
+ */
+export function appendTrailingBoundary(
+  data: CategoryTimeSeriesPoint[],
+  bucketSeconds: number,
+): CategoryTimeSeriesPoint[] {
+  if (data.length === 0) {
+    return data;
+  }
+  const last = data[data.length - 1];
+  return [...data, { ts: last.ts + bucketSeconds, categories: [] }];
+}
+
 function toChartData(
   data: CategoryTimeSeriesPoint[],
   categoryNames: readonly string[],
   bucketSeconds: number,
+  unit: TimeSeriesValueUnit,
 ): ChartRow[] {
   return data.map((point) => {
     const byName = new Map(
@@ -84,7 +105,7 @@ function toChartData(
       label: formatTimeSeriesAxisLabel(point.ts, bucketSeconds),
     };
     for (const name of categoryNames) {
-      row[name] = secondsToMinutes(byName.get(name) ?? 0);
+      row[name] = unit.secondsToValue(byName.get(name) ?? 0);
     }
     return row;
   });
@@ -104,7 +125,7 @@ function hasAnyActivity(
   return false;
 }
 
-export default function TimeSeriesChart({
+function TimeSeriesChartInner({
   data,
   categoryOrder = [],
   bucketSeconds = 120,
@@ -113,46 +134,117 @@ export default function TimeSeriesChart({
   plotCaptureRef,
 }: Props) {
   const plotInnerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Verfügbare Breite des (stabilen) Scroll-Containers. Wird per ResizeObserver
+  // gemessen, damit der Chart die Breite füllt statt Whitespace zu lassen.
+  const [containerWidth, setContainerWidth] = useState(0);
 
-  const assignPlotRef = (el: HTMLDivElement | null) => {
-    plotInnerRef.current = el;
-    if (plotCaptureRef) {
-      plotCaptureRef.current = el;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // Der Scroll-Container ändert seine Breite NICHT, wenn der innere Chart
+    // wächst (overflow-x: auto), daher keine ResizeObserver-Feedbackschleife.
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      // Puffer, damit ein exakt passender Chart keine Scrollbar auslöst.
+      setContainerWidth(Math.max(0, Math.floor(width) - 2));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const assignPlotRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      plotInnerRef.current = el;
+      if (plotCaptureRef) {
+        plotCaptureRef.current = el;
+      }
+    },
+    [plotCaptureRef],
+  );
+
+  // Memoize: Trimmen und Kategorien extrahieren
+  const trimmed = useMemo(
+    () => (shouldTrimLeading ? trimLeadingEmptyBuckets(data) : data),
+    [data, shouldTrimLeading],
+  );
+
+  const categoryNames = useMemo(
+    () => resolveCategoryNames(trimmed, categoryOrder),
+    [trimmed, categoryOrder],
+  );
+
+  // Memoize: Einheit und Chart-Daten
+  const unit = useMemo(
+    () => timeSeriesValueUnit(bucketSeconds),
+    [bucketSeconds],
+  );
+
+  const chartData = useMemo(() => {
+    if (trimmed.length === 0 || categoryNames.length === 0) {
+      return [];
     }
-  };
-  const trimmed = shouldTrimLeading ? trimLeadingEmptyBuckets(data) : data;
-  const categoryNames = resolveCategoryNames(trimmed, categoryOrder);
+    const chartSource = appendTrailingBoundary(trimmed, bucketSeconds);
+    return toChartData(chartSource, categoryNames, bucketSeconds, unit);
+  }, [trimmed, categoryNames, bucketSeconds, unit]);
 
-  if (trimmed.length === 0 || categoryNames.length === 0) {
+  // Memoize: Layout-Werte
+  const { showDots, chartWidth, denseAxis, bucketLabel } = useMemo(() => {
+    // Natürliche Breite (Detailansicht): mind. PX_PER_BUCKET pro Datenpunkt.
+    const naturalWidth = chartData.length * PX_PER_BUCKET;
+    // Container füllen, wenn wenige Punkte (Wochenbericht) → kein Whitespace.
+    // Bei vielen Punkten (Tagesbericht) bleibt die natürliche Breite → Scroll.
+    const width = Math.max(naturalWidth, containerWidth || 480);
+    return {
+      showDots: chartData.length <= 24,
+      chartWidth: width,
+      denseAxis: chartData.length > 40,
+      bucketLabel: formatBucketLabel(bucketSeconds),
+    };
+  }, [chartData.length, bucketSeconds, containerWidth]);
+
+  // Memoize: Prüfung ob Aktivität vorhanden
+  const hasActivity = useMemo(
+    () => hasAnyActivity(trimmed, categoryNames),
+    [trimmed, categoryNames],
+  );
+
+  // Memoize: Tooltip-Renderer (vermeidet neue Funktionsreferenz bei jedem Render)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const renderTooltip = useCallback(
+    (props: any) => (
+      <TimeSeriesTooltipPortal
+        active={props.active}
+        payload={props.payload as TimeSeriesTooltipBodyProps["payload"]}
+        label={props.label}
+        coordinate={props.coordinate}
+        chartRootRef={plotInnerRef}
+        bucketSeconds={bucketSeconds}
+      />
+    ),
+    [bucketSeconds],
+  );
+
+  // Early returns nach allen Hooks
+  if (trimmed.length === 0 || categoryNames.length === 0 || !hasActivity) {
     return (
       <p style={{ color: "var(--muted)", fontStyle: "italic", marginTop: 8 }}>
         {emptyHint}
       </p>
     );
   }
-
-  if (!hasAnyActivity(trimmed, categoryNames)) {
-    return (
-      <p style={{ color: "var(--muted)", fontStyle: "italic", marginTop: 8 }}>
-        {emptyHint}
-      </p>
-    );
-  }
-
-  const chartData = toChartData(trimmed, categoryNames, bucketSeconds);
-  const showDots = chartData.length <= 24;
-  const bucketLabel = formatBucketLabel(bucketSeconds);
-  const chartWidth = Math.max(chartData.length * PX_PER_BUCKET, 480);
-  const denseAxis = chartData.length > 40;
 
   return (
     <div className="timeSeriesChartWrap">
       <p className="timeSeriesChartCaption">
-        Eine Linie pro Kategorie: Minuten pro {bucketLabel}-Fenster (nicht
-        summiert; bei Wechseln können mehrere Linien im selben Fenster sichtbar
-        sein). Horizontal scrollen für mehr Detail.
+        Eine Linie pro Kategorie: {unit.captionUnit} pro {bucketLabel}-Fenster
+        (nicht summiert; bei Wechseln können mehrere Linien im selben Fenster
+        sichtbar sein). Horizontal scrollen für mehr Detail.
       </p>
-      <div className="timeSeriesChartPlot timeSeriesChartPlotScroll">
+      <div
+        ref={scrollRef}
+        className="timeSeriesChartPlot timeSeriesChartPlotScroll"
+      >
         <div
           ref={assignPlotRef}
           className="timeSeriesChartPlotInner"
@@ -168,18 +260,7 @@ export default function TimeSeriesChart({
               shared
               allowEscapeViewBox={{ x: true, y: true }}
               reverseDirection={{ x: true, y: true }}
-              content={(props) => (
-                <TimeSeriesTooltipPortal
-                  active={props.active}
-                  payload={
-                    props.payload as TimeSeriesTooltipBodyProps["payload"]
-                  }
-                  label={props.label}
-                  coordinate={props.coordinate}
-                  chartRootRef={plotInnerRef}
-                  bucketSeconds={bucketSeconds}
-                />
-              )}
+              content={renderTooltip}
               cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
             />
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -199,7 +280,7 @@ export default function TimeSeriesChart({
                 typeof v === "number" ? v.toFixed(1) : String(v)
               }
               label={{
-                value: "Min / Fenster",
+                value: unit.axisLabel,
                 angle: -90,
                 position: "insideLeft",
                 fill: "var(--muted)",
@@ -229,3 +310,7 @@ export default function TimeSeriesChart({
     </div>
   );
 }
+
+// Memoized Export: Verhindert unnötige Re-Renders bei gleichen Props
+const TimeSeriesChart = memo(TimeSeriesChartInner);
+export default TimeSeriesChart;

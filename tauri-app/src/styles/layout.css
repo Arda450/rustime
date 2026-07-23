@@ -1,10 +1,9 @@
 /**
  * layout.css – Gemeinsame Section- und Listen-Layouts
- * Komponenten: ProjectsPanel.tsx, SettingsPanel.tsx (section.container)
- * Legacy-Klassen: .trackingCard, .activitiesCard (falls noch verwendet)
+ * Komponenten: SettingsPanel.tsx (section.container)
  */
 
-/* --- ProjectsPanel, SettingsPanel: äusserer Bereich --- */
+/* --- SettingsPanel: äusserer Bereich --- */
 .container {
   position: relative;
   overflow: visible;
